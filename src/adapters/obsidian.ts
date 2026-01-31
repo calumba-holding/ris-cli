@@ -166,12 +166,19 @@ export class ObsidianAdapter {
    * Get recent judgments (for notification)
    */
   getRecentJudgments(hours: number = 24): ProcessedJudgment[] {
+    // SQLite columns are snake_case; our TS types are camelCase.
     const stmt = this.db.prepare(`
-      SELECT * FROM processed_judgments
+      SELECT
+        id,
+        url,
+        query,
+        file_path   AS filePath,
+        processed_at AS processedAt
+      FROM processed_judgments
       WHERE processed_at > datetime('now', ?)
       ORDER BY processed_at DESC
     `);
-    
+
     const result = stmt.all(`-${hours} hours`);
     return result as ProcessedJudgment[];
   }
@@ -180,7 +187,16 @@ export class ObsidianAdapter {
    * Get judgment by ID
    */
   getJudgmentById(id: string): ProcessedJudgment | undefined {
-    const stmt = this.db.prepare('SELECT * FROM processed_judgments WHERE id = ?');
+    const stmt = this.db.prepare(`
+      SELECT
+        id,
+        url,
+        query,
+        file_path   AS filePath,
+        processed_at AS processedAt
+      FROM processed_judgments
+      WHERE id = ?
+    `);
     return stmt.get(id) as ProcessedJudgment | undefined;
   }
 
