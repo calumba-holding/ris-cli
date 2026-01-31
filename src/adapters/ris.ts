@@ -66,7 +66,14 @@ export class RISAdapter {
       const params = { Suchworte: query };
 
       const response = await this.fetchWithRetry(url, params);
-      return this.parseApiResults(response.data, query, limit);
+      const results = this.parseApiResults(response.data, query, limit * 2); // Fetch more, then sort
+      // Sort by date descending (newest first)
+      results.sort((a, b) => {
+        const dateA = a.date || '1900-01-01';
+        const dateB = b.date || '1900-01-01';
+        return dateB.localeCompare(dateA);
+      });
+      return results.slice(0, limit);
     } catch (error) {
       console.error(`API search failed for query "${query}":`, error);
       return [];
