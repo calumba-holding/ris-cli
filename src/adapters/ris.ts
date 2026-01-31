@@ -218,28 +218,41 @@ export class RISAdapter {
       const gz = this.extractGZ(judikatur.Geschaeftszahl);
       const date = judikatur.Entscheidungsdatum || '';
 
+      // Prefer a real decision text (JJT_...) over a Rechtssatz (JJR_...), because only the
+      // text document contains the actual judgment full text.
+      const decisionTexts = judikatur?.Justiz?.Entscheidungstexte?.item;
+      const preferredTextDoc = Array.isArray(decisionTexts) ? decisionTexts.find((t: any) => typeof t?.DokumentUrl === 'string') : undefined;
+
       // Human-facing document page URL (Dokument.wxe)
-      const docUrl = metadata?.Allgemein?.DokumentUrl ||
+      const docUrl = preferredTextDoc?.DokumentUrl ||
+                  metadata?.Allgemein?.DokumentUrl || 
                   metadata?.DokumentUrl ||
-                  judikatur?.Entscheidungstexte?.item?.[0]?.DokumentUrl ||
                   '';
 
+      // Prefer decision metadata from the preferred text document, if present
+      const effectiveDate = preferredTextDoc?.Entscheidungsdatum || date;
+      const effectiveGz = preferredTextDoc?.Geschaeftszahl || gz;
+
       // Direct content URLs (XML/HTML/RTF/PDF) are usually present under Dokumentliste
-      const contentUrls = this.extractContentUrls(item);
+      // (but these belong to the current API document - often a Rechtssatz JJR_...).
+      // If we switched to a decision text document (JJT_...), we intentionally ignore those
+      // and let fetchDetail() scrape the JJT page to find the correct content links.
+      const contentUrls = preferredTextDoc ? undefined : this.extractContentUrls(item);
 
       // Generate title from Geschaeftszahl or use first decision text
       const title = this.extractTitle(judikatur);
 
       if (title) {
         const apiId = metadata?.Technisch?.ID;
-        const id = apiId ? String(apiId) : this.generateId(docUrl || `${gz}-${date}`);
+        const docNo = this.extractDokumentnummer(docUrl);
+        const id = docNo ? docNo : (apiId ? String(apiId) : this.generateId(docUrl || `${gz}-${date}`));
 
         results.push({
           id,
           title,
           court: Array.isArray(court) ? court[0] : court,
-          date: this.normalizeDate(date),
-          gz,
+          date: this.normalizeDate(effectiveDate),
+          gz: effectiveGz,
           url: docUrl || '',
           contentUrls,
           snippet: this.extractSnippet(judikatur),
@@ -304,6 +317,18 @@ export class RISAdapter {
     return undefined;
   }
 
+  private extractDokumentnummer(url: string | undefined): string | undefined {
+    if (!url) return undefined;
+    try {
+      const u = new URL(url);
+      const docNo = u.searchParams.get('Dokumentnummer');
+      return docNo || undefined;
+    } catch {
+      // url might be relative; ignore
+      return undefined;
+    }
+  }
+
   /**
    * Extract direct document content URLs (XML/HTML/RTF/PDF) from the RIS API payload.
    */
@@ -358,13 +383,16 @@ export class RISAdapter {
     const docLinks = $('a[href*="/Dokumente/Justiz/"]').toArray();
 
     // Look for XML/HTML/RTF links and try to fetch content
-    for (const link of docLinks.slice(0, 3)) {
-      const href = $(link).attr('href');
-      if (href && (href.endsWith('.html') || href.endsWith('.rtf'))) {
+    for (const link of docLinks.slice(0, 6)) {
+      const hrefRaw = $(link).attr('href');
+      if (!hrefRaw) continue;
+
+      const href = new URL(hrefRaw, url).toString();
+
+      if (href.endsWith('.xml') || href.endsWith('.html') || href.endsWith('.rtf')) {
         try {
-          const axios = await import('axios');
-          const response = await axios.default.get(href, { timeout: 10000 });
-          fullText = await this.extractTextFromDocument(response.data, href);
+          const response = await axios.get(href, { timeout: 20000, responseType: 'text' });
+          fullText = await this.extractTextFromDocument(String(response.data), href);
           if (fullText.length > 500) break;
         } catch {
           // Continue trying other links
