@@ -44,7 +44,9 @@ export function getCurrentDate(): string {
 /**
  * Parse command line flags for output format
  */
-export function parseOutputFormat(value: string | undefined): 'json' | 'text' {
+export function parseOutputFormat(value: unknown): 'json' | 'text' {
+  // commander boolean flag: --json => true
+  if (value === true) return 'json';
   if (value === 'json') return 'json';
   return 'text';
 }

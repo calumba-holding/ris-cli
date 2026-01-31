@@ -268,7 +268,8 @@ export class RISAdapter {
    */
   private async parseDetailPage(html: string, url: string): Promise<JudgmentDetail | null> {
     const cheerio = await import('cheerio');
-    const $ = cheerio.default(html);
+    // cheerio is ESM/CJS hybrid; use .load for a stable API
+    const $ = cheerio.load(html);
 
     // Try to find document title
     const title = 
@@ -339,7 +340,7 @@ export class RISAdapter {
   private async extractTextFromDocument(content: string, url: string): Promise<string> {
     if (url.endsWith('.html') || url.endsWith('.xml')) {
       const cheerio = await import('cheerio');
-      const $ = cheerio.default(content);
+      const $ = cheerio.load(content);
       return $('body').text().trim();
     }
     
