@@ -21,7 +21,8 @@
     "build": "tsup",
     "dev": "tsx src/cli.ts",
     "start": "node dist/cli.js",
-    "test": "vitest",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "test:ui": "vitest --ui",
     "lint": "eslint src --ext .ts"
   },

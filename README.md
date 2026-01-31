@@ -4,9 +4,12 @@ CLI tool for monitoring Austrian RIS (Rechtsinformationssystem) judgments relate
 
 ## Features
 
-- **Search**: Query the Austrian RIS database for judgments
+- **Search**: Query the Austrian RIS API for judgments
 - **Sync**: Automatically monitor predefined keywords and save results to Obsidian
 - **Notify**: Get native macOS notifications for new judgments
+- **API-first**: Uses official data.bka.gv.at RIS API v2.6
+- **Full-text search**: Search local Obsidian files with ripgrep
+- **AI summaries**: Optional OpenAI integration for judgment summaries
 
 ## Installation
 
@@ -82,6 +85,9 @@ urteil-watch sync
 # Dry run (show what would be synced)
 urteil-watch sync --dry-run
 
+# (Advanced / back-compat) mode switch
+urteil-watch sync --mode test
+
 # Custom queries
 urteil-watch sync --queries "Cybermobbing,Hassposting"
 
@@ -151,18 +157,20 @@ retrieved_at: 2024-01-15T10:30:00.000Z
 
 ## How It Works
 
-### RIS Scraping
+## RIS API
 
-The tool scrapes the Austrian RIS website (`ris.bka.gv.at`) using:
-- HTTP GET requests with proper User-Agent
-- Cheerio for HTML parsing
-- Exponential backoff for retry handling
+The tool uses the official [RIS API v2.6](https://data.bka.gv.at/ris/api/v2.6/Help/Api/GET-Judikatur) for querying judgments:
 
-The scraper targets:
-1. Search results page (`/Search`)
-2. Individual judgment detail pages
+```
+https://data.bka.gv.at/ris/api/v2.6/Judikatur?Suchworte=SEARCH_TERM
+```
 
-⚠️ **Note**: RIS does not provide a documented public API. This tool relies on HTML parsing which may break if RIS changes their website structure.
+### How It Works
+
+1. **Search**: Query the RIS API with `Suchworte` parameter
+2. **Parse**: Extract judgment metadata (Geschäftszahl, court, date, URL)
+3. **Fetch details**: For full text, fetch the document detail page
+4. **Save**: Write judgment to Obsidian vault as MDX with YAML frontmatter
 
 ### Duplicate Detection
 
@@ -183,8 +191,11 @@ npm install
 # Run in development mode
 npm run dev
 
-# Run tests
+# Run tests (non-interactive)
 npm test
+
+# Watch mode
+npm run test:watch
 
 # Build for production
 npm run build

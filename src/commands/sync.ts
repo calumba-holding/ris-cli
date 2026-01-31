@@ -20,6 +20,9 @@ export function createSyncCommand(): Command {
   const cmd = new Command('sync')
     .description('Run searches for predefined keywords and persist new results to Obsidian')
     .option('-q, --queries <items>', 'Comma-separated custom queries (overrides defaults)')
+    .option('--dry-run', 'Show what would be synced, but do not write files')
+    .option('--force', 'Re-process items even if already processed (ignore duplicate detection)')
+    // Back-compat / power-user switch (prefer --dry-run / --force)
     .option('--mode <mode>', 'Sync mode: incremental (default), full, test', 'incremental')
     .option('--json', 'Output as JSON')
     .action(async (options) => {
@@ -31,7 +34,18 @@ export function createSyncCommand(): Command {
 
 async function executeSync(options: any): Promise<void> {
   const outputFormat = parseOutputFormat(options.json);
-  const mode = options.mode || 'incremental';
+
+  // Resolve mode
+  const hasMode = typeof options.mode === 'string' && options.mode.length > 0;
+  const wantsDryRun = !!options.dryRun;
+  const wantsForce = !!options.force;
+
+  if ((wantsDryRun && wantsForce) || ((wantsDryRun || wantsForce) && hasMode && options.mode !== 'incremental')) {
+    console.error('❌ Invalid options: use either --dry-run, --force, or --mode (not a mix).');
+    return;
+  }
+
+  const mode = wantsDryRun ? 'test' : wantsForce ? 'full' : (options.mode || 'incremental');
 
   // Validate mode
   const validModes = ['incremental', 'full', 'test'];
