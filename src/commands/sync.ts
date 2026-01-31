@@ -5,7 +5,7 @@ import { getRISAdapter } from '../adapters/ris.js';
 import { getObsidianAdapter } from '../adapters/obsidian.js';
 import { generateSummary } from '../lib/summary.js';
 import { formatOutput, parseOutputFormat } from '../lib/utils.js';
-import type { SyncOptions, Judgment, JudgmentDetail } from '../types/index.js';
+import type { Judgment, SearchResult } from '../types/index.js';
 
 // Default queries for cyberbullying and hate speech
 export const DEFAULT_QUERIES = [
@@ -107,7 +107,7 @@ async function executeSync(options: any): Promise<void> {
         }
 
         // Fetch full details
-        const detail = await risAdapter.fetchDetail(result.url);
+        const detail = await risAdapter.fetchDetail(result);
         
         if (!detail) {
           errors.push(id);

@@ -26,7 +26,8 @@ async function executeNotify(options: any): Promise<void> {
   const obsidianAdapter = getObsidianAdapter();
 
   // Get recent judgments
-  const recentJudgments = obsidianAdapter.getRecentJudgments(hours);
+  const recentJudgments = obsidianAdapter.getRecentJudgments(hours)
+    .filter((j: any) => j && typeof j === 'object' && (j.query || j.url || j.id));
 
   if (outputJson) {
     console.log(JSON.stringify({
@@ -51,8 +52,9 @@ async function executeNotify(options: any): Promise<void> {
   }
 
   // Group by query
-  const byQuery = recentJudgments.reduce((acc: Record<string, number>, j) => {
-    acc[j.query] = (acc[j.query] || 0) + 1;
+  const byQuery = recentJudgments.reduce((acc: Record<string, number>, j: any) => {
+    const q = j.query || 'unknown';
+    acc[q] = (acc[q] || 0) + 1;
     return acc;
   }, {});
 

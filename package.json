@@ -2,7 +2,7 @@
   "name": "urteil-watch",
   "version": "1.0.0",
   "description": "CLI tool for monitoring Austrian RIS judgments related to cyberbullying and hate speech",
-  "author": "urteil-watchdog",
+  "author": "Pascal Schott",
   "license": "MIT",
   "keywords": [
     "austrian",
@@ -15,7 +15,7 @@
   "bin": {
     "urteil-watch": "./bin/urteil-watch.js"
   },
-  "main": "./dist/index.js",
+  "main": "./dist/cli.js",
   "type": "module",
   "scripts": {
     "build": "tsup",

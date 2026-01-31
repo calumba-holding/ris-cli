@@ -20,7 +20,22 @@ export interface SearchResult {
   court: string;
   date: string;
   gz?: string;
+
+  /**
+   * Human-facing RIS document page URL (Dokument.wxe)
+   */
   url: string;
+
+  /**
+   * Direct content URLs returned by the RIS API (preferred for extracting full text).
+   */
+  contentUrls?: {
+    xml?: string;
+    html?: string;
+    rtf?: string;
+    pdf?: string;
+  };
+
   snippet?: string;
 }
 

@@ -81,23 +81,52 @@ export class RISAdapter {
   }
 
   /**
-   * Fetch detailed information for a specific judgment via HTML (API doesn't provide full text)
+   * Fetch detailed information (incl. full text) for a specific judgment.
+   *
+   * Prefer the direct content URLs (XML/HTML/RTF) returned by the RIS API.
+   * Falling back to scraping the human-facing HTML page is a last resort.
    */
-  async fetchDetail(url: string): Promise<JudgmentDetail | null> {
-    // The API doesn't provide full text, so we use the HTML detail page
+  async fetchDetail(result: SearchResult): Promise<JudgmentDetail | null> {
+    const url = result.url;
+
     try {
-      const cheerio = await import('cheerio');
-      const axios = await import('axios');
-      
-      const response = await axios.default.get(url, {
+      // 1) Try content URLs first (best signal, no JS shell)
+      const candidates: Array<{ kind: 'xml' | 'html' | 'rtf'; url: string }> = [];
+      if (result.contentUrls?.xml) candidates.push({ kind: 'xml', url: result.contentUrls.xml });
+      if (result.contentUrls?.html) candidates.push({ kind: 'html', url: result.contentUrls.html });
+      if (result.contentUrls?.rtf) candidates.push({ kind: 'rtf', url: result.contentUrls.rtf });
+
+      for (const c of candidates) {
+        try {
+          const response = await axios.get(c.url, {
+            timeout: 30000,
+            headers: {
+              'User-Agent': 'urteil-watch/1.0 (research tool)',
+              'Accept': c.kind === 'xml' ? 'application/xml,text/xml,*/*;q=0.8' : '*/*',
+            },
+            responseType: 'text',
+          });
+
+          const extracted = await this.extractTextFromDocument(String(response.data), c.url);
+          if (extracted && extracted.trim().length > 500) {
+            return this.buildDetailFromExtractedText(result, extracted, c.url);
+          }
+        } catch {
+          // try next candidate
+        }
+      }
+
+      // 2) Fallback: scrape HTML document page
+      const response = await axios.get(url, {
         timeout: 30000,
         headers: {
           'User-Agent': 'urteil-watch/1.0 (research tool)',
           'Accept': 'text/html',
         },
+        responseType: 'text',
       });
-      
-      return this.parseDetailPage(response.data, url);
+
+      return this.parseDetailPage(String(response.data), url);
     } catch (error) {
       console.error(`Failed to fetch detail for ${url}:`, error);
       return null;
@@ -122,7 +151,7 @@ export class RISAdapter {
 
     // Handle response - it may be a string or object with wrapped data
     let cleanData = data;
-    
+
     if (typeof data === 'string') {
       // Try to find and extract the JSON object
       const jsonMatch = data.match(/\{[\s\S]*\}/);
@@ -155,18 +184,18 @@ export class RISAdapter {
 
     // Navigate to the Data array
     let dataArray = cleanData?.Data || cleanData?.data;
-    
+
     // Handle nested data structure
     if (!Array.isArray(dataArray) && cleanData?.Data?.Data) {
       dataArray = cleanData.Data.Data;
     }
-    
+
     // Handle OgdSearchResult already processed above
     if (!Array.isArray(dataArray) && Array.isArray(cleanData)) {
       // cleanData is already the array of Data objects
       dataArray = cleanData;
     }
-    
+
     if (!dataArray || !Array.isArray(dataArray)) return results;
 
     for (const item of dataArray) {
@@ -175,32 +204,36 @@ export class RISAdapter {
       // Navigate the nested structure - Data.Metadaten
       const metadata = item?.Metadaten || item?.metadata;
       const judikatur = metadata?.Judikatur || metadata?.Judikatur || metadata;
-      
+
       if (!judikatur) continue;
 
       // Extract court - may be in different locations
-      const courtData = judikatur?.Gericht || 
+      const courtData = judikatur?.Gericht ||
                    metadata?.Technisch?.Organ ||
                    metadata?.Organ ||
                    'Unknown';
       const court = Array.isArray(courtData) ? courtData[0] : courtData;
-      
+
       // Extract main fields
       const gz = this.extractGZ(judikatur.Geschaeftszahl);
       const date = judikatur.Entscheidungsdatum || '';
-      
-      // Get URL from various possible locations
-      let docUrl = metadata?.Allgemein?.DokumentUrl || 
+
+      // Human-facing document page URL (Dokument.wxe)
+      const docUrl = metadata?.Allgemein?.DokumentUrl ||
                   metadata?.DokumentUrl ||
                   judikatur?.Entscheidungstexte?.item?.[0]?.DokumentUrl ||
                   '';
-      
+
+      // Direct content URLs (XML/HTML/RTF/PDF) are usually present under Dokumentliste
+      const contentUrls = this.extractContentUrls(item);
+
       // Generate title from Geschaeftszahl or use first decision text
       const title = this.extractTitle(judikatur);
-      
+
       if (title) {
-        const id = this.generateId(docUrl || `${gz}-${date}`);
-        
+        const apiId = metadata?.Technisch?.ID;
+        const id = apiId ? String(apiId) : this.generateId(docUrl || `${gz}-${date}`);
+
         results.push({
           id,
           title,
@@ -208,6 +241,7 @@ export class RISAdapter {
           date: this.normalizeDate(date),
           gz,
           url: docUrl || '',
+          contentUrls,
           snippet: this.extractSnippet(judikatur),
         });
       }
@@ -221,11 +255,11 @@ export class RISAdapter {
    */
   private extractGZ(gz: string | { item?: string[] } | undefined): string | undefined {
     if (!gz) return undefined;
-    
+
     if (typeof gz === 'string') return gz;
     if (Array.isArray(gz)) return gz[0];
     if (gz?.item && Array.isArray(gz.item)) return gz.item[0];
-    
+
     return undefined;
   }
 
@@ -241,11 +275,11 @@ export class RISAdapter {
         return first.Geschaeftszahl;
       }
     }
-    
+
     // Fallback to Geschaeftszahl (may be string or array)
     const gz = this.extractGZ(judikatur.Geschaeftszahl);
     if (gz) return gz;
-    
+
     return 'Unknown Judgment';
   }
 
@@ -257,7 +291,7 @@ export class RISAdapter {
     if (judikatur.Schlagworte) {
       return judikatur.Schlagworte.substring(0, 200);
     }
-    
+
     // Try first Entscheidungstext Anmerkung
     const texts = judikatur?.Entscheidungstexte?.item;
     if (texts && Array.isArray(texts) && texts.length > 0) {
@@ -266,8 +300,32 @@ export class RISAdapter {
         return first.Anmerkung.replace(/<[^>]*>/g, '').substring(0, 200);
       }
     }
-    
+
     return undefined;
+  }
+
+  /**
+   * Extract direct document content URLs (XML/HTML/RTF/PDF) from the RIS API payload.
+   */
+  private extractContentUrls(item: any): SearchResult['contentUrls'] {
+    const urls: SearchResult['contentUrls'] = {};
+
+    const list: any[] =
+      item?.Dokumentliste?.ContentReference?.Urls?.ContentUrl ||
+      item?.Dokumentliste?.ContentReference?.Urls?.contentUrl ||
+      [];
+
+    const arr = Array.isArray(list) ? list : [list];
+    for (const entry of arr) {
+      const u = entry?.Url || entry?.url;
+      if (typeof u !== 'string') continue;
+      if (u.endsWith('.xml')) urls.xml = u;
+      else if (u.endsWith('.html')) urls.html = u;
+      else if (u.endsWith('.rtf')) urls.rtf = u;
+      else if (u.endsWith('.pdf')) urls.pdf = u;
+    }
+
+    return Object.keys(urls).length ? urls : undefined;
   }
 
   /**
@@ -279,14 +337,14 @@ export class RISAdapter {
     const $ = cheerio.load(html);
 
     // Try to find document title
-    const title = 
+    const title =
       $('h1.dokument-titel, h1.dokumentTitle, h1').first().text().trim() ||
-      $('title').text().replace(/\s*[-–]\s*RIS.*$/i, '').trim() ||
+      $('title').text().replace(/\s*[--]\s*RIS.*$/i, '').trim() ||
       'Unknown Title';
 
     // Extract metadata from page
     const pageText = $('body').text();
-    
+
     const courtMatch = pageText.match(/\b(OGH|OLG|LG|BG|VfGH|VwGH)\b/);
     const dateMatch = pageText.match(/(\d{1,2}\.\d{1,2}\.\d{4})/);
     const gzMatch = pageText.match(/([A-Z]{2,4}\s*[\d\/]+(?:\/\d{4})?)/);
@@ -298,7 +356,7 @@ export class RISAdapter {
     // Try to find full text in document links
     let fullText = '';
     const docLinks = $('a[href*="/Dokumente/Justiz/"]').toArray();
-    
+
     // Look for XML/HTML/RTF links and try to fetch content
     for (const link of docLinks.slice(0, 3)) {
       const href = $(link).attr('href');
@@ -345,14 +403,66 @@ export class RISAdapter {
    * Extract text from document (XML/HTML/RTF)
    */
   private async extractTextFromDocument(content: string, url: string): Promise<string> {
+    // HTML / XML
     if (url.endsWith('.html') || url.endsWith('.xml')) {
       const cheerio = await import('cheerio');
-      const $ = cheerio.load(content);
-      return $('body').text().trim();
+      const xmlMode = url.endsWith('.xml');
+      const $ = cheerio.load(content, { xmlMode });
+
+      // Drop scripts/styles if present (HTML)
+      $('script, style, noscript').remove();
+
+      const bodyText = $('body').text();
+      const text = (bodyText && bodyText.trim().length > 0 ? bodyText : $.text()).trim();
+      return text;
     }
-    
-    // For RTF or other formats, return as-is (limited parsing)
-    return content.substring(0, 5000);
+
+    // RTF (very naive, but better than dumping control codes)
+    if (url.endsWith('.rtf')) {
+      return this.rtfToText(content);
+    }
+
+    // Unknown / PDF etc.
+    return content;
+  }
+
+  private rtfToText(rtf: string): string {
+    // Strip RTF groups and control words; keep a rough plain-text.
+    // This won't be perfect, but it's good enough for searchable notes.
+    return rtf
+      .replace(/\{\\\*[^}]*\}/g, '')
+      .replace(/\{\s*\}/g, '')
+      .replace(/\\par[d]?/g, '\n')
+      .replace(/\\tab/g, '\t')
+      .replace(/\\'[0-9a-fA-F]{2}/g, ' ')
+      .replace(/\\[a-zA-Z]+-?\d*\s?/g, '')
+      .replace(/[{}]/g, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .replace(/[ \t]{2,}/g, ' ')
+      .trim();
+  }
+
+  private buildDetailFromExtractedText(result: SearchResult, extractedText: string, sourceUrl: string): JudgmentDetail {
+    const fullText = this.cleanText(extractedText);
+
+    return {
+      id: result.id,
+      title: result.title,
+      court: result.court,
+      date: result.date,
+      gz: result.gz,
+      url: result.url,
+      snippet: fullText.substring(0, 200) + '...',
+      metadata: {
+        court: result.court,
+        date: result.date,
+        gz: result.gz,
+        decision: undefined,
+        ogiNumber: undefined,
+        legalBase: undefined,
+      },
+      fullText,
+    };
   }
 
   /**
@@ -367,13 +477,13 @@ export class RISAdapter {
    */
   private normalizeDate(dateStr: string): string {
     if (!dateStr) return '';
-    
+
     const match = dateStr.match(/(\d{1,2})\.(\d{1,2})\.(\d{4})/);
     if (match) {
       const [, day, month, year] = match;
       return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
     }
-    
+
     return dateStr;
   }
 
