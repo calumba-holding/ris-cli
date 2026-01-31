@@ -268,7 +268,7 @@ export class RISAdapter {
    */
   private extractTitle(judikatur: any): string {
     // Try to get from first Entscheidungstext
-    const texts = judikatur?.Entscheidungstexte?.item;
+    const texts = judikatur?.Entscheidungstexte?.item || judikatur?.Justiz?.Entscheidungstexte?.item;
     if (texts && Array.isArray(texts) && texts.length > 0) {
       const first = texts[0];
       if (first?.Geschaeftszahl) {
@@ -293,7 +293,7 @@ export class RISAdapter {
     }
 
     // Try first Entscheidungstext Anmerkung
-    const texts = judikatur?.Entscheidungstexte?.item;
+    const texts = judikatur?.Entscheidungstexte?.item || judikatur?.Justiz?.Entscheidungstexte?.item;
     if (texts && Array.isArray(texts) && texts.length > 0) {
       const first = texts[0];
       if (first?.Anmerkung) {
