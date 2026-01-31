@@ -1,6 +1,6 @@
 // Notification system for macOS
 
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 
 export interface NotificationOptions {
   title?: string;
@@ -11,16 +11,26 @@ export interface NotificationOptions {
 /**
  * Send a native macOS notification
  */
+function escapeAppleScriptString(s: string): string {
+  // AppleScript string literal uses double quotes; escape backslashes + quotes.
+  return s.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
 export function sendNotification(message: string, options: NotificationOptions = {}): boolean {
   const { title = 'urteil-watch', subtitle, sound = true } = options;
 
-  const soundArg = sound ? 'with sound "default"' : '';
-  const subtitleArg = subtitle ? `subtitle "${subtitle}"` : '';
+  const subtitleArg = subtitle ? `subtitle "${escapeAppleScriptString(subtitle)}"` : '';
+  const soundArg = sound ? 'sound name "default"' : '';
 
-  const script = `display notification "${message}" ${soundArg} ${subtitleArg} with title "${title}"`;
-  
+  // AppleScript syntax:
+  // display notification "msg" with title "title" subtitle "sub" sound name "default"
+  const script = `display notification "${escapeAppleScriptString(message)}" with title "${escapeAppleScriptString(title)}" ${subtitleArg} ${soundArg}`;
+
   try {
-    execSync(`osascript -e '${script}'`);
+    // Avoid shell quoting issues by calling osascript directly.
+    execFileSync('osascript', ['-e', script], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
     return true;
   } catch (error) {
     console.warn('Failed to send notification:', error);

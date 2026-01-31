@@ -60,9 +60,14 @@ async function executeNotify(options: any): Promise<void> {
   
   // List recent judgments
   recentJudgments.forEach((judgment, index) => {
-    console.log(`${index + 1}. ${judgment.filePath.split('/').pop()}`);
+    const displayName = judgment.filePath
+      ? judgment.filePath.split('/').pop()
+      : (judgment.url || judgment.id);
+
+    console.log(`${index + 1}. ${displayName}`);
     console.log(`   Query: "${judgment.query}"`);
     console.log(`   Processed: ${judgment.processedAt}`);
+    if (!judgment.filePath) console.log('   (warn: missing filePath in DB row)');
     console.log('');
   });
 
