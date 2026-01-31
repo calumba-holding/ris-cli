@@ -2,7 +2,7 @@
 
 import { Command } from 'commander';
 import { getObsidianAdapter } from '../adapters/obsidian.js';
-import { notifyNewJudgments, notifySyncComplete, logToConsole } from '../lib/notifications.js';
+import { notifyNewJudgments, notifyJudgmentList, notifySyncComplete, logToConsole } from '../lib/notifications.js';
 import type { NotifyOptions } from '../types/index.js';
 
 export function createNotifyCommand(): Command {
@@ -75,7 +75,10 @@ async function executeNotify(options: any): Promise<void> {
 
   // Send notification
   if (!silent) {
-    // Notify per query
+    // Preferred: one Telegram message with the list (falls back to macOS summary)
+    notifyJudgmentList(recentJudgments, hours);
+
+    // Also send per-query count notifications (macOS -> fine, Telegram -> a bit noisy but OK)
     Object.entries(byQuery).forEach(([query, count]) => {
       notifyNewJudgments(count as number, query);
     });

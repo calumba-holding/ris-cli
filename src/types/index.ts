@@ -72,12 +72,22 @@ export interface NotifyOptions {
   output?: 'json' | 'text';
 }
 
+export interface TelegramConfig {
+  /** Bot token (BotFather) */
+  botToken: string;
+  /** Group/channel/user chat id (e.g. -100123...) */
+  chatId: string;
+  /** Optional topic/thread id within a forum group */
+  topicId?: number;
+}
+
 export interface Config {
   obsidianVaultPath: string;
   dataFolder: string;
   defaultQueries: string[];
   openaiApiKey?: string;
   sqlitePath: string;
+  telegram?: TelegramConfig;
 }
 
 export interface ProcessedJudgment {

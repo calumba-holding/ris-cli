@@ -1,0 +1,7 @@
+{
+  "telegram": {
+    "botToken": "123456:ABCDEF...",
+    "chatId": "-1001234567890",
+    "topicId": 5
+  }
+}
