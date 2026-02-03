@@ -20,6 +20,8 @@ export function createSyncCommand(): Command {
   const cmd = new Command('sync')
     .description('Run searches for predefined keywords and persist new results to Obsidian')
     .option('-q, --queries <items>', 'Comma-separated custom queries (overrides defaults)')
+    .option('--from-date <date>', 'Filter from date (YYYY-MM-DD) [default: last 30 days]')
+    .option('--to-date <date>', 'Filter to date (YYYY-MM-DD) [default: today]')
     .option('--dry-run', 'Show what would be synced, but do not write files')
     .option('--force', 'Re-process items even if already processed (ignore duplicate detection)')
     // Back-compat / power-user switch (prefer --dry-run / --force)
@@ -86,11 +88,18 @@ async function executeSync(options: any): Promise<void> {
 
   console.log(`\n${modeEmoji} Starting sync (${modeDesc}) for ${queries.length} query/queries...\n`);
 
+  // Date defaults: last 30 days
+  const today = new Date();
+  const toDate = (options.toDate as string | undefined) ?? today.toISOString().slice(0, 10);
+  const fromDate =
+    (options.fromDate as string | undefined) ??
+    new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
   for (const query of queries) {
-    console.log(`📋 Searching: "${query}"`);
+    console.log(`📋 Searching: "${query}" (${fromDate} → ${toDate})`);
 
     try {
-      const results = await risAdapter.search(query, { limit: 10 });
+      const results = await risAdapter.search(query, { limit: 10, fromDate, toDate });
 
       for (const result of results) {
         const id = result.id;

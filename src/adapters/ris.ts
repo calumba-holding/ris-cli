@@ -59,11 +59,17 @@ export class RISAdapter {
    * Search RIS API for judgments matching the query
    */
   async search(query: string, options: RISSearchOptions = {}): Promise<SearchResult[]> {
-    const { limit = 20, offset = 0 } = options;
+    const { limit = 20, offset = 0, fromDate, toDate } = options;
 
     try {
       const url = `${this.apiUrl}/Judikatur`;
-      const params = { Suchworte: query };
+      const params: Record<string, any> = {
+        Suchworte: query,
+      };
+
+      // Date filter (RIS API params)
+      if (fromDate) params.EntscheidungsdatumVon = fromDate;
+      if (toDate) params.EntscheidungsdatumBis = toDate;
 
       const response = await this.fetchWithRetry(url, params);
       const results = this.parseApiResults(response.data, query, limit * 2); // Fetch more, then sort

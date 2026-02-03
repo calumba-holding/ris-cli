@@ -62,6 +62,8 @@ export interface JudgmentDetail extends SearchResult {
 
 export interface SyncOptions {
   queries?: string[];
+  fromDate?: string;
+  toDate?: string;
   dryRun?: boolean;
   force?: boolean;
   output?: 'json' | 'text';
