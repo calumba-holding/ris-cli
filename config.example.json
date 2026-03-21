@@ -1,4 +1,10 @@
 {
+  "obsidianVaultPath": "/path/to/your/obsidian-vault",
+  "dataFolder": "ris-cli",
+  "summaryProvider": "ollama",
+  "summaryModel": "llama3.1:8b",
+  "summaryBaseUrl": "http://127.0.0.1:11434",
+  "summaryApiKey": "optional-if-needed",
   "telegram": {
     "botToken": "123456:ABCDEF...",
     "chatId": "-1001234567890",

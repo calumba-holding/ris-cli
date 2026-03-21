@@ -1,26 +1,26 @@
 // Obsidian integration - Save judgments to vault
 
-import * as fs from 'fs';
-import * as path from 'path';
-import * as yaml from 'js-yaml';
-import Database from 'better-sqlite3';
-import type { Judgment, ProcessedJudgment } from '../types/index.js';
+import * as fs from "fs";
+import * as path from "path";
+import * as yaml from "js-yaml";
+import Database from "better-sqlite3";
+import { getDataFolder, requireObsidianVaultPath } from "../lib/config.js";
+import type { Judgment, ProcessedJudgment } from "../types/index.js";
 
-export const OBSIDIAN_VAULT_PATH = '/Users/lana/syncthing/obsidian/semir';
-export const RIS_WATCHDOG_FOLDER = '03_Resources/ris-watchdog';
-export const URTEILE_FOLDER = 'urteile';
-export const DB_FILENAME = 'state.sqlite';
+export const URTEILE_FOLDER = "urteile";
+export const DB_FILENAME = "state.sqlite";
 
 export class ObsidianAdapter {
-  private vaultPath: string;
   private dataPath: string;
   private db: Database.Database;
 
-  constructor(vaultPath: string = OBSIDIAN_VAULT_PATH) {
-    this.vaultPath = vaultPath;
-    this.dataPath = path.join(vaultPath, RIS_WATCHDOG_FOLDER);
-    this.db = this.initDatabase();
+  constructor(
+    vaultPath: string = requireObsidianVaultPath(),
+    dataFolder: string = getDataFolder(),
+  ) {
+    this.dataPath = path.join(vaultPath, dataFolder);
     this.ensureFolders();
+    this.db = this.initDatabase();
   }
 
   /**
@@ -29,7 +29,7 @@ export class ObsidianAdapter {
   private initDatabase(): Database.Database {
     const dbPath = path.join(this.dataPath, DB_FILENAME);
     const db = new Database(dbPath);
-    
+
     db.exec(`
       CREATE TABLE IF NOT EXISTS processed_judgments (
         id TEXT PRIMARY KEY,
@@ -55,10 +55,7 @@ export class ObsidianAdapter {
    * Ensure required folders exist
    */
   private ensureFolders(): void {
-    const folders = [
-      this.dataPath,
-      path.join(this.dataPath, URTEILE_FOLDER),
-    ];
+    const folders = [this.dataPath, path.join(this.dataPath, URTEILE_FOLDER)];
 
     for (const folder of folders) {
       if (!fs.existsSync(folder)) {
@@ -71,7 +68,9 @@ export class ObsidianAdapter {
    * Check if a judgment has already been processed
    */
   isProcessed(id: string): boolean {
-    const stmt = this.db.prepare('SELECT 1 FROM processed_judgments WHERE id = ?');
+    const stmt = this.db.prepare(
+      "SELECT 1 FROM processed_judgments WHERE id = ?",
+    );
     return stmt.get(id) !== undefined;
   }
 
@@ -83,13 +82,13 @@ export class ObsidianAdapter {
       INSERT OR IGNORE INTO processed_judgments (id, url, query, file_path, processed_at)
       VALUES (?, ?, ?, ?, ?)
     `);
-    
+
     stmt.run(
       judgment.id,
       judgment.url,
       judgment.query,
       filePath,
-      judgment.retrievedAt
+      judgment.retrievedAt,
     );
   }
 
@@ -97,7 +96,7 @@ export class ObsidianAdapter {
    * Get all processed judgment IDs
    */
   getProcessedIds(): string[] {
-    const stmt = this.db.prepare('SELECT id FROM processed_judgments');
+    const stmt = this.db.prepare("SELECT id FROM processed_judgments");
     return stmt.all().map((row: any) => row.id);
   }
 
@@ -115,13 +114,17 @@ export class ObsidianAdapter {
       gz: judgment.gz || null,
       url: judgment.url,
       query: judgment.query,
-      tags: judgment.tags || ['ris-watchdog', 'judgment'],
+      tags: judgment.tags || ["ris-cli", "judgment"],
       retrieved_at: judgment.retrievedAt,
     };
 
-    const content = this.formatMarkdown(frontmatter, judgment.fullText || '', summary);
+    const content = this.formatMarkdown(
+      frontmatter,
+      judgment.fullText || "",
+      summary,
+    );
 
-    fs.writeFileSync(filePath, content, 'utf-8');
+    fs.writeFileSync(filePath, content, "utf-8");
     this.markProcessed(judgment, filePath);
 
     return filePath;
@@ -131,30 +134,34 @@ export class ObsidianAdapter {
    * Generate a safe filename from judgment
    */
   private generateFilename(judgment: Judgment): string {
-    const date = judgment.date.replace(/-/g, '');
+    const date = judgment.date.replace(/-/g, "");
     const safeTitle = judgment.title
-      .replace(/[^a-zA-Z0-9äöüÄÖÜß\s]/g, '')
-      .replace(/\s+/g, '_')
+      .replace(/[^a-zA-Z0-9äöüÄÖÜß\s]/g, "")
+      .replace(/\s+/g, "_")
       .substring(0, 50);
-    
+
     return `urteile_${date}_${judgment.court}_${safeTitle}.mdx`;
   }
 
   /**
    * Format judgment as markdown with YAML frontmatter
    */
-  private formatMarkdown(frontmatter: Record<string, any>, fullText: string, summary?: string): string {
+  private formatMarkdown(
+    frontmatter: Record<string, any>,
+    fullText: string,
+    summary?: string,
+  ): string {
     const yamlStr = yaml.dump(frontmatter, { lineWidth: -1 });
-    
+
     let content = `---\n${yamlStr}---\n\n`;
     content += `# ${frontmatter.title}\n\n`;
-    
+
     if (summary) {
-      content += `## Zusammenfassung (AI-generiert)\n\n${summary}\n\n`;
+      content += `## Zusammenfassung\n\n${summary}\n\n`;
     } else {
-      content += `## Zusammenfassung\n\n*Keine KI-Zusammenfassung verfügbar.*\n\n`;
+      content += `## Zusammenfassung\n\n*Keine Zusammenfassung verfügbar.*\n\n`;
     }
-    
+
     content += `## Volltext\n\n${fullText}\n\n`;
     content += `---\n*Abgerufen am: ${frontmatter.retrieved_at}*\n`;
     content += `*Suchbegriff: ${frontmatter.query}*\n`;
@@ -204,8 +211,33 @@ export class ObsidianAdapter {
    * Get total processed count
    */
   getProcessedCount(): number {
-    const stmt = this.db.prepare('SELECT COUNT(*) as count FROM processed_judgments');
+    const stmt = this.db.prepare(
+      "SELECT COUNT(*) as count FROM processed_judgments",
+    );
     return (stmt.get() as any).count;
+  }
+
+  getSyncState(key: string): string | undefined {
+    const stmt = this.db.prepare("SELECT value FROM sync_state WHERE key = ?");
+    const row = stmt.get(key) as { value: string } | undefined;
+    return row?.value;
+  }
+
+  setSyncState(key: string, value: string): void {
+    const stmt = this.db.prepare(`
+      INSERT INTO sync_state (key, value)
+      VALUES (?, ?)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value
+    `);
+    stmt.run(key, value);
+  }
+
+  getLastSuccessfulSync(): string | undefined {
+    return this.getSyncState("last_successful_sync");
+  }
+
+  setLastSuccessfulSync(value: string): void {
+    this.setSyncState("last_successful_sync", value);
   }
 
   /**

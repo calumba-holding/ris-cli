@@ -1,63 +1,77 @@
 ---
-name: urteil-watchdog
-version: 0.1.0
+name: ris-cli
+version: 1.0.0
 ---
 
-# urteil-watchdog
+# ris-cli
 
-CLI tool for monitoring Austrian RIS (Rechtsinformationssystem) judgments and syncing them into Obsidian.
+`ris-cli` is a CLI wrapper for the Austrian RIS (Rechtsinformationssystem) API with a current focus on **Judikatur** workflows.
 
-## What it does
+## Current scope
 
-- Searches RIS via the official API (`data.bka.gv.at/ris/api/v2.6`).
-- Fetches details (HTML) for full text when possible.
-- Writes results as `.mdx` files into an Obsidian vault folder.
-- Tracks already processed documents in SQLite to avoid duplicates.
-- Can send macOS notifications.
+Today the implemented commands are centered on Judikatur:
+
+- search Judikatur documents via the official RIS API
+- sync matching Judikatur results into an Obsidian vault
+- track processed items in SQLite to avoid duplicates
+- generate optional summaries
+- send Telegram or macOS notifications
+- create runtime config via `onboard`
+
+The repository also contains broader RIS endpoint documentation under `docs/`, but those areas are not yet fully exposed as first-class CLI commands.
 
 ## Install
 
 ```bash
-npm install
-npm run build
-npm link   # optional, for global `urteil-watch`
+pnpm install
+pnpm build
+pnpm link --global   # optional, for a global `ris-cli`
 ```
 
 ## Configuration
 
-### Obsidian path
+Primary config path:
 
-Configure via `config.json` (see `config.example.json`).
+```text
+~/.config/ris-cli/config.json
+```
+
+Environment variables use the `RIS_CLI_*` prefix. Legacy `URTEIL_WATCH_*` variables and config paths are still supported for backward compatibility.
 
 ### Optional: AI summaries
 
 ```bash
-export OPENAI_API_KEY=...
+export RIS_CLI_SUMMARY_PROVIDER=ollama
+export RIS_CLI_SUMMARY_MODEL=llama3.1:8b
+# or use OPENAI_API_KEY / RIS_CLI_SUMMARY_API_KEY for an OpenAI-compatible endpoint
 ```
 
 ## Usage
 
 ```bash
 # dev
-npm run dev -- --help
+pnpm dev -- --help
 
-# search
-urteil-watch search "Cybermobbing" --limit 20
+# search Judikatur
+ris-cli search "Cybermobbing" --limit 20
 
-# sync default queries
-urteil-watch sync
+# sync default Judikatur queries
+ris-cli sync
 
 # sync custom queries
-urteil-watch sync --queries "OLG §111 StGB,OLG §283 StGB"
+ris-cli sync --queries "OLG §111 StGB,OLG §283 StGB"
 
 # dry-run
-urteil-watch sync --dry-run
+ris-cli sync --dry-run
 
-# notify
-urteil-watch notify --hours 24
+# notify for recent synced items
+ris-cli notify --hours 24
+
+# create config interactively
+ris-cli onboard
 ```
 
 ## Notes
 
-- This repo is intended for internal use (paths/config are tailored to our environment).
-- Before adding new features, check existing `pasogott/*` repos to avoid duplicates.
+- `ris-cli` is intended to grow into a broader RIS wrapper, but the current executable scope is Judikatur-first.
+- See `README.md` and `docs/` for the wider RIS API coverage already documented in the repository.

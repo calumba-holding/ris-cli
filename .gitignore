@@ -1,5 +1,8 @@
 node_modules/
+build/
 dist/
 .env
 *.log
+*.tgz
+pnpm-debug.log*
 .DS_Store

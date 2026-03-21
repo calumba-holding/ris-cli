@@ -1,0 +1,18 @@
+# Changelog
+
+## Unreleased
+
+## 1.0.0 - 2026-03-21
+
+* Added the initial `ris-cli` CLI for searching Austrian RIS judgments, syncing results into Obsidian, and tracking processed entries in SQLite.
+* Added Telegram notifications with macOS fallback for new and synced judgments.
+* Added date filters to `sync` and aligned sync flags for dry runs and full reprocessing.  #1
+* Improved RIS fetching to prefer decision texts, resolve direct content URLs, and extract fuller titles and snippets from returned documents.
+* Sorted search results newest first and improved JSON output handling for CLI responses.
+* Fixed notification handling for stored rows with snake_case database columns, missing `filePath` values, and AppleScript quoting issues on macOS.
+* Improved RIS adapter compatibility by fixing the Cheerio ESM import path and making full-text retrieval more robust.
+* Added an interactive `onboard` command plus centralized config loading for `RIS_CLI_*` environment variables, `~/.config/ris-cli/config.json`, and legacy config fallbacks.
+* Added configurable summary generation with `extractive`, `ollama`, `vllm`, `mlx-lm`, and OpenAI-compatible providers for richer `search --with-summary` workflows.
+* Renamed the distributed CLI binary to `ris-cli`, refreshed the package metadata, and documented the project as a broader RIS wrapper with current Judikatur-first support.
+* Switched the project tooling to `pnpm` and added CI and release workflows with build, smoke, packed-package, and publish checks.
+* Added verified local RIS API reference material under `docs/` for Judikatur, Sonstige, examples, and the wider endpoint catalog.

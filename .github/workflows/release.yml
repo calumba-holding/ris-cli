@@ -1,0 +1,174 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version tag (e.g. v1.0.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate-release:
+    name: Validate release tag
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      package_version: ${{ steps.meta.outputs.package_version }}
+      prerelease: ${{ steps.meta.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch tags and main
+        run: |
+          git fetch --force --tags origin
+          git fetch origin main --depth=1
+
+      - name: Resolve and validate version
+        id: meta
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/}"
+          fi
+
+          if ! printf '%s' "$VERSION" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+            echo "❌ Release tag must match vMAJOR.MINOR.PATCH or vMAJOR.MINOR.PATCH-PRERELEASE (got: $VERSION)"
+            exit 1
+          fi
+
+          TAG_SHA=$(git rev-list -n 1 "refs/tags/$VERSION")
+          if [ -z "$TAG_SHA" ]; then
+            echo "❌ Tag $VERSION does not exist"
+            exit 1
+          fi
+
+          if ! git merge-base --is-ancestor "$TAG_SHA" origin/main; then
+            echo "❌ Tag $VERSION must point to a commit contained in origin/main"
+            exit 1
+          fi
+
+          PACKAGE_VERSION="${VERSION#v}"
+          PRERELEASE=false
+          if printf '%s' "$VERSION" | grep -q -- '-'; then
+            PRERELEASE=true
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "package_version=$PACKAGE_VERSION" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
+
+  create-release:
+    name: Create GitHub release
+    needs: [validate-release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ needs.validate-release.outputs.version }}
+      package_version: ${{ needs.validate-release.outputs.package_version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ needs.validate-release.outputs.version }}
+          fetch-depth: 0
+
+      - name: Create release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.validate-release.outputs.version }}
+          name: Release ${{ needs.validate-release.outputs.version }}
+          draft: false
+          prerelease: ${{ needs.validate-release.outputs.prerelease == 'true' }}
+          body: |
+            ## @calumba/ris-cli ${{ needs.validate-release.outputs.version }}
+
+            Install:
+
+            ```bash
+            pnpm add -g @calumba/ris-cli@${{ needs.validate-release.outputs.package_version }}
+            # or
+            npm i -g @calumba/ris-cli@${{ needs.validate-release.outputs.package_version }}
+            ```
+
+            Or run without global install:
+
+            ```bash
+            pnpm dlx @calumba/ris-cli --help
+            ```
+
+  publish-pnpm:
+    name: Publish to npm registry
+    needs: [validate-release, create-release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ needs.validate-release.outputs.version }}
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify package version matches tag
+        run: |
+          TAG_VERSION="${{ needs.validate-release.outputs.package_version }}"
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
+            echo "❌ package.json version $PKG_VERSION does not match tag v$TAG_VERSION"
+            exit 1
+          fi
+          echo "✅ Version matches: $PKG_VERSION"
+
+      - name: Run checks
+        run: pnpm check
+
+      - name: Build package artifacts
+        run: pnpm build
+
+      - name: Smoke test built CLI
+        run: pnpm smoke
+
+      - name: Smoke test packed package
+        run: |
+          TARBALL=$(pnpm pack --pack-destination . | tail -n 1)
+          TMP_DIR=$(mktemp -d)
+          cp "$TARBALL" "$TMP_DIR/"
+          cd "$TMP_DIR"
+          printf '{"name":"ris-cli-release-smoke","private":true}\n' > package.json
+          pnpm add "./$TARBALL" >/dev/null
+          ./node_modules/.bin/ris-cli --version >/dev/null
+          ./node_modules/.bin/ris-cli --help >/dev/null
+          ./node_modules/.bin/ris-cli search --help >/dev/null
+          ./node_modules/.bin/ris-cli sync --help >/dev/null
+          ./node_modules/.bin/ris-cli notify --help >/dev/null
+          ./node_modules/.bin/ris-cli onboard --help >/dev/null
+
+      - name: Publish package with provenance
+        run: pnpm publish --access public --provenance --no-git-checks

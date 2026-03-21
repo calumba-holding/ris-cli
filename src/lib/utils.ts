@@ -1,13 +1,13 @@
 // Utility functions
 
-import pkg from 'exponential-backoff';
+import pkg from "exponential-backoff";
 const { backOff } = pkg;
 
 /**
  * Sleep for specified milliseconds
  */
 export function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
@@ -16,13 +16,12 @@ export function sleep(ms: number): Promise<void> {
 export async function backoff<T>(
   fn: () => Promise<T>,
   maxRetries: number = 3,
-  baseDelay: number = 1000
+  baseDelay: number = 1000,
 ): Promise<T> {
   return backOff(fn, {
     maxDelay: 10000,
     numOfAttempts: maxRetries,
     startingDelay: baseDelay,
-    timeUnit: 'milliseconds',
   });
 }
 
@@ -30,7 +29,7 @@ export async function backoff<T>(
  * Format date to ISO string
  */
 export function formatDate(date: Date | string): string {
-  const d = typeof date === 'string' ? new Date(date) : date;
+  const d = typeof date === "string" ? new Date(date) : date;
   return d.toISOString();
 }
 
@@ -44,11 +43,11 @@ export function getCurrentDate(): string {
 /**
  * Parse command line flags for output format
  */
-export function parseOutputFormat(value: unknown): 'json' | 'text' {
+export function parseOutputFormat(value: unknown): "json" | "text" {
   // commander boolean flag: --json => true
-  if (value === true) return 'json';
-  if (value === 'json') return 'json';
-  return 'text';
+  if (value === true) return "json";
+  if (value === "json") return "json";
+  return "text";
 }
 
 /**
@@ -56,21 +55,21 @@ export function parseOutputFormat(value: unknown): 'json' | 'text' {
  */
 export function truncate(text: string, length: number = 100): string {
   if (text.length <= length) return text;
-  return text.substring(0, length) + '...';
+  return text.substring(0, length) + "...";
 }
 
 /**
  * Format output based on type
  */
-export function formatOutput(data: any, format: 'json' | 'text'): string {
-  if (format === 'json') {
+export function formatOutput(data: any, format: "json" | "text"): string {
+  if (format === "json") {
     return JSON.stringify(data, null, 2);
   }
-  
+
   if (Array.isArray(data)) {
-    return data.map(item => formatObject(item)).join('\n---\n');
+    return data.map((item) => formatObject(item)).join("\n---\n");
   }
-  
+
   return formatObject(data);
 }
 
@@ -80,12 +79,11 @@ export function formatOutput(data: any, format: 'json' | 'text'): string {
 function formatObject(obj: Record<string, any>): string {
   return Object.entries(obj)
     .map(([key, value]) => {
-      const formattedValue = typeof value === 'object' 
-        ? JSON.stringify(value) 
-        : String(value);
+      const formattedValue =
+        typeof value === "object" ? JSON.stringify(value) : String(value);
       return `${key}: ${formattedValue}`;
     })
-    .join('\n');
+    .join("\n");
 }
 
 /**
@@ -105,8 +103,8 @@ export function isValidUrl(url: string): boolean {
  */
 export function sanitizeFilename(filename: string): string {
   return filename
-    .replace(/[<>:"/\\|?*]/g, '_')
-    .replace(/\s+/g, '_')
+    .replace(/[<>:"/\\|?*]/g, "_")
+    .replace(/\s+/g, "_")
     .substring(0, 200);
 }
 

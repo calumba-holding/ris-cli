@@ -1,4 +1,4 @@
-// Types for urteil-watch CLI
+// Types for ris-cli CLI
 
 export interface Judgment {
   id: string;
@@ -14,12 +14,21 @@ export interface Judgment {
   tags?: string[];
 }
 
+export type SummaryProvider =
+  | "extractive"
+  | "openai-compatible"
+  | "ollama"
+  | "vllm"
+  | "mlx-lm";
+
 export interface SearchResult {
   id: string;
   title: string;
   court: string;
   date: string;
   gz?: string;
+  summary?: string;
+  summaryMethod?: "generated" | "extractive" | "none";
 
   /**
    * Human-facing RIS document page URL (Dokument.wxe)
@@ -44,8 +53,8 @@ export interface SearchOptions {
   offset?: number;
   fromDate?: string;
   toDate?: string;
-  output?: 'json' | 'text';
-  gericht?: 'OGH' | 'OLG' | 'LG' | 'All';
+  output?: "json" | "text";
+  gericht?: string;
 }
 
 export interface JudgmentDetail extends SearchResult {
@@ -54,7 +63,7 @@ export interface JudgmentDetail extends SearchResult {
     date: string;
     gz?: string;
     decision?: string;
-   ogiNumber?: string;
+    ogiNumber?: string;
     legalBase?: string[];
   };
   fullText: string;
@@ -66,12 +75,14 @@ export interface SyncOptions {
   toDate?: string;
   dryRun?: boolean;
   force?: boolean;
-  output?: 'json' | 'text';
+  output?: "json" | "text";
+  gericht?: string;
+  maxResultsPerQuery?: number;
 }
 
 export interface NotifyOptions {
   silent?: boolean;
-  output?: 'json' | 'text';
+  output?: "json" | "text";
 }
 
 export interface TelegramConfig {
@@ -87,6 +98,10 @@ export interface Config {
   obsidianVaultPath: string;
   dataFolder: string;
   defaultQueries: string[];
+  summaryProvider?: SummaryProvider;
+  summaryModel?: string;
+  summaryBaseUrl?: string;
+  summaryApiKey?: string;
   openaiApiKey?: string;
   sqlitePath: string;
   telegram?: TelegramConfig;

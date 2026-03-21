@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run format, typecheck, tests, and smoke checks
+        run: pnpm check && pnpm smoke
+
+      - name: Build package artifacts
+        run: pnpm build
+
+      - name: Verify built CLI runtime
+        run: node dist/cli.js --help >/dev/null
+
+  package-smoke:
+    name: Package smoke test
+    needs: [check]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build package artifacts
+        run: pnpm build
+
+      - name: Pack tarball
+        id: pack
+        run: |
+          TARBALL=$(pnpm pack --pack-destination . | tail -n 1)
+          echo "tarball=$TARBALL" >> "$GITHUB_OUTPUT"
+
+      - name: Smoke test packed package
+        run: |
+          TMP_DIR=$(mktemp -d)
+          cp "${{ steps.pack.outputs.tarball }}" "$TMP_DIR/"
+          cd "$TMP_DIR"
+          printf '{"name":"ris-cli-package-smoke","private":true}\n' > package.json
+          pnpm add "./${{ steps.pack.outputs.tarball }}" >/dev/null
+          ./node_modules/.bin/ris-cli --version >/dev/null
+          ./node_modules/.bin/ris-cli --help >/dev/null
+          ./node_modules/.bin/ris-cli search --help >/dev/null
+          ./node_modules/.bin/ris-cli sync --help >/dev/null
+          ./node_modules/.bin/ris-cli notify --help >/dev/null
+          ./node_modules/.bin/ris-cli onboard --help >/dev/null

@@ -1,22 +1,45 @@
 {
-  "name": "urteil-watch",
+  "name": "@calumba/ris-cli",
   "version": "1.0.0",
-  "description": "CLI tool for monitoring Austrian RIS judgments related to cyberbullying and hate speech",
+  "description": "CLI wrapper for the Austrian RIS API with current Judikatur-first support",
   "author": "Pascal Schott",
   "license": "MIT",
   "keywords": [
-    "austrian",
+    "austria",
     "ris",
-    "judgment",
+    "judgments",
     "legal",
-    "cyberbullying",
-    "hate-speech"
+    "obsidian",
+    "cli",
+    "notifications"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/calumba-holding/ris-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/calumba-holding/ris-cli/issues"
+  },
   "bin": {
-    "urteil-watch": "./bin/urteil-watch.js"
+    "ris-cli": "bin/ris-cli.js"
   },
   "main": "./dist/cli.js",
   "type": "module",
+  "files": [
+    "bin",
+    "dist",
+    "README.md",
+    "LICENSE",
+    "config.example.json"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "packageManager": "pnpm@10.32.1",
   "scripts": {
     "build": "tsup",
     "dev": "tsx src/cli.ts",
@@ -24,7 +47,14 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
-    "lint": "eslint src --ext .ts"
+    "lint": "pnpm format:check",
+    "typecheck": "tsc --noEmit",
+    "check": "pnpm lint && pnpm typecheck && pnpm test",
+    "clean": "rm -rf dist",
+    "format": "prettier --write \"{src,bin}/**/*.{ts,js}\" \"*.{json,md}\"",
+    "format:check": "prettier --check \"{src,bin}/**/*.{ts,js}\" \"*.{json,md}\"",
+    "smoke": "pnpm build && node bin/ris-cli.js --version && node bin/ris-cli.js search --help && node bin/ris-cli.js sync --help && node bin/ris-cli.js notify --help && node bin/ris-cli.js onboard --help",
+    "prepublishOnly": "pnpm build && pnpm test"
   },
   "dependencies": {
     "axios": "^1.6.2",

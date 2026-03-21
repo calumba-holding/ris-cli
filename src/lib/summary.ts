@@ -1,134 +1,201 @@
-// Summary generator using OpenAI or naive fallback
+// Summary generator using configured providers or extractive fallback
 
-import type { JudgmentDetail } from '../types/index.js';
-
-// Lazy initialization of OpenAI
-let openaiClient: ReturnType<typeof import('openai').OpenAI> | null = null;
-
-async function getOpenAIClient() {
-  if (!openaiClient && process.env.OPENAI_API_KEY) {
-    const OpenAI = (await import('openai')).default;
-    openaiClient = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    });
-  }
-  return openaiClient;
-}
+import { getSummaryConfig } from "./config.js";
+import type { JudgmentDetail, SummaryProvider } from "../types/index.js";
 
 export interface SummaryResult {
   summary: string;
-  method: 'openai' | 'naive' | 'none';
+  method: "generated" | "extractive" | "none";
 }
+
+const SUMMARY_SYSTEM_PROMPT =
+  "Du bist ein juristischer Assistent, der österreichische Gerichtsurteile analysiert und prägnant auf Deutsch zusammenfasst.";
 
 /**
  * Generate a summary for a judgment
  */
 export async function generateSummary(
   judgment: JudgmentDetail,
-  options: { preferNaive?: boolean } = {}
+  options: { preferExtractive?: boolean } = {},
 ): Promise<SummaryResult> {
-  // Check if OpenAI is available
-  if (!process.env.OPENAI_API_KEY || options.preferNaive) {
-    return generateNaiveSummary(judgment);
+  if (options.preferExtractive) {
+    return generateExtractiveSummary(judgment);
+  }
+
+  const config = getSummaryConfig();
+  if (config.provider === "extractive") {
+    return generateExtractiveSummary(judgment);
   }
 
   try {
-    return await generateOpenAISummary(judgment);
+    switch (config.provider) {
+      case "ollama":
+        return await generateOllamaSummary(judgment, config);
+      case "openai-compatible":
+      case "vllm":
+      case "mlx-lm":
+        return await generateOpenAICompatibleSummary(judgment, config);
+      default:
+        return generateExtractiveSummary(judgment);
+    }
   } catch (error) {
-    console.warn('OpenAI summary failed, falling back to naive summary:', error);
-    return generateNaiveSummary(judgment);
+    console.warn(
+      `Summary generation via ${config.provider} failed, falling back to extractive summary:`,
+      error,
+    );
+    return generateExtractiveSummary(judgment);
   }
 }
 
-/**
- * Generate summary using OpenAI
- */
-async function generateOpenAISummary(judgment: JudgmentDetail): Promise<SummaryResult> {
-  const client = await getOpenAIClient();
-  if (!client) {
-    return generateNaiveSummary(judgment);
-  }
+async function generateOpenAICompatibleSummary(
+  judgment: JudgmentDetail,
+  config: ReturnType<typeof getSummaryConfig>,
+): Promise<SummaryResult> {
+  const OpenAI = (await import("openai")).default;
 
-  const prompt = `Analysiere das folgende österreichische Gerichtsurteil und erstelle eine prägnante Zusammenfassung auf Deutsch:
-
-**Titel:** ${judgment.title}
-**Gericht:** ${judgment.court}
-**Datum:** ${judgment.date}
-**Aktenzeichen:** ${judgment.gz || 'N/A'}
-
-**Volltext:**
-${judgment.fullText.substring(0, 8000)}
-
-Bitte fasse das Urteil in 3-5 Sätzen zusammen, einschließlich:
-- Sachverhalt (was war der Kern des Falls)
-- Entscheidung des Gerichts
-- Relevante rechtliche Aspekte`;
+  const client = new OpenAI({
+    apiKey: config.apiKey || "not-needed",
+    ...(config.baseUrl ? { baseURL: config.baseUrl } : {}),
+  });
 
   const response = await client.chat.completions.create({
-    model: 'gpt-4o',
+    model: resolveModelName(config.provider, config.model, config.baseUrl),
     messages: [
       {
-        role: 'system',
-        content: 'Du bist ein juristischer Assistent, der österreichische Gerichtsurteile analysiert und zusammenfasst. Antworte immer auf Deutsch.',
+        role: "system",
+        content: SUMMARY_SYSTEM_PROMPT,
       },
       {
-        role: 'user',
-        content: prompt,
+        role: "user",
+        content: buildSummaryPrompt(judgment),
       },
     ],
     max_tokens: 500,
     temperature: 0.3,
   });
 
-  const summary = response.choices[0]?.message?.content || '';
+  const summary = response.choices[0]?.message?.content?.trim() || "";
+  if (!summary) {
+    return generateExtractiveSummary(judgment);
+  }
 
   return {
     summary,
-    method: 'openai',
+    method: "generated",
   };
 }
 
+async function generateOllamaSummary(
+  judgment: JudgmentDetail,
+  config: ReturnType<typeof getSummaryConfig>,
+): Promise<SummaryResult> {
+  const model = config.model ?? "llama3.1:8b";
+  const baseUrl = (config.baseUrl ?? "http://127.0.0.1:11434").replace(
+    /\/$/,
+    "",
+  );
+
+  const response = await fetch(`${baseUrl}/api/chat`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      model,
+      stream: false,
+      messages: [
+        { role: "system", content: SUMMARY_SYSTEM_PROMPT },
+        { role: "user", content: buildSummaryPrompt(judgment) },
+      ],
+      options: {
+        temperature: 0.3,
+      },
+    }),
+    signal: AbortSignal.timeout(120000),
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      `Ollama request failed: ${response.status} ${response.statusText}`,
+    );
+  }
+
+  const json = (await response.json()) as { message?: { content?: string } };
+  const summary = json.message?.content?.trim() || "";
+  if (!summary) {
+    return generateExtractiveSummary(judgment);
+  }
+
+  return {
+    summary,
+    method: "generated",
+  };
+}
+
+function resolveModelName(
+  provider: SummaryProvider,
+  configuredModel: string | undefined,
+  baseUrl: string | undefined,
+): string {
+  if (configuredModel) return configuredModel;
+
+  if (provider === "openai-compatible" && baseUrl?.includes("api.openai.com")) {
+    return "gpt-4o";
+  }
+
+  return "local-model";
+}
+
+function buildSummaryPrompt(judgment: JudgmentDetail): string {
+  return `Analysiere das folgende österreichische Gerichtsurteil und erstelle eine prägnante Zusammenfassung auf Deutsch:
+
+Titel: ${judgment.title}
+Gericht: ${judgment.court}
+Datum: ${judgment.date}
+Aktenzeichen: ${judgment.gz || "N/A"}
+
+Volltext:
+${judgment.fullText.substring(0, 8000)}
+
+Bitte fasse das Urteil in 3-5 Sätzen zusammen. Gehe dabei auf Sachverhalt, Entscheidung und rechtlich relevante Aspekte ein.`;
+}
+
 /**
- * Generate a naive summary (first N sentences)
+ * Generate an extractive summary (first N sentences)
  */
-function generateNaiveSummary(judgment: JudgmentDetail): SummaryResult {
-  const fullText = judgment.fullText || '';
-  
+function generateExtractiveSummary(judgment: JudgmentDetail): SummaryResult {
+  const fullText = judgment.fullText || "";
+
   if (!fullText) {
     return {
-      summary: 'Kein Volltext verfügbar für Zusammenfassung.',
-      method: 'none',
+      summary: "Kein Volltext verfügbar für Zusammenfassung.",
+      method: "none",
     };
   }
 
-  // Split into sentences and take first 5
   const sentences = fullText
-    .replace(/([.!?])\s+/g, '$1|')
-    .split('|')
-    .map(s => s.trim())
-    .filter(s => s.length > 10);
+    .replace(/([.!?])\s+/g, "$1|")
+    .split("|")
+    .map((sentence) => sentence.trim())
+    .filter((sentence) => sentence.length > 10);
 
   const summarySentences = sentences.slice(0, 5);
-  
-  const summary = `**Automatische Zusammenfassung (keine KI):**
-  
-Gericht: ${judgment.court}
-Datum: ${judgment.date}
-Aktenzeichen: ${judgment.gz || 'N/A'}
-
-${summarySentences.join('. ')}${summarySentences.length > 0 ? '.' : ''}
-
-*Hinweis: Diese Zusammenfassung wurde automatisch generiert ohne KI-Unterstützung. Für eine detailliertere Analyse kann eine KI-Zusammenfassung aktiviert werden (OPENAI_API_KEY setzen).*`;
+  const content = summarySentences.join(". ");
+  const summary = [
+    `Gericht: ${judgment.court}`,
+    `Datum: ${judgment.date}`,
+    `Aktenzeichen: ${judgment.gz || "N/A"}`,
+    content ? `\n${content}${content.endsWith(".") ? "" : "."}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
 
   return {
     summary,
-    method: 'naive',
+    method: "extractive",
   };
 }
 
-/**
- * Check if OpenAI is configured
- */
-export function isOpenAIConfigured(): boolean {
-  return !!process.env.OPENAI_API_KEY;
+export function isGeneratedSummaryConfigured(): boolean {
+  return getSummaryConfig().provider !== "extractive";
 }

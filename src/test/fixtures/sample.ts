@@ -6,7 +6,8 @@ export const sampleAPIResponse = {
       Metadaten: {
         Technisch: { ID: "JJR_20230315_OGH0002_0040OB00123_2300000_001" },
         Allgemein: {
-          DokumentUrl: "https://www.ris.bka.gv.at/Dokument.wxe?Abfrage=Justiz&Dokumentnummer=JJR_20230315_OGH0002_0040OB00123_2300000_001"
+          DokumentUrl:
+            "https://www.ris.bka.gv.at/Dokument.wxe?Abfrage=Justiz&Dokumentnummer=JJR_20230315_OGH0002_0040OB00123_2300000_001",
         },
         Judikatur: {
           Dokumenttyp: "Rechtssatz",
@@ -22,19 +23,22 @@ export const sampleAPIResponse = {
                 Dokumenttyp: "Text",
                 Gericht: "OGH",
                 Entscheidungsdatum: "2023-03-15",
-                Anmerkung: "Der Beschwerdeführer wurde der üblen Nachrede schuldig erkannt.",
-                DokumentUrl: "https://www.ris.bka.gv.at/Dokument.wxe?Abfrage=Justiz&Dokumentnummer=JJT_20230315_OGH0002_0040OB00123_2300000_000"
-              }
-            ]
-          }
-        }
-      }
+                Anmerkung:
+                  "Der Beschwerdeführer wurde der üblen Nachrede schuldig erkannt.",
+                DokumentUrl:
+                  "https://www.ris.bka.gv.at/Dokument.wxe?Abfrage=Justiz&Dokumentnummer=JJT_20230315_OGH0002_0040OB00123_2300000_000",
+              },
+            ],
+          },
+        },
+      },
     },
     {
       Metadaten: {
         Technisch: { ID: "JJR_20230322_OGH0002_0050OB00456_2300000_001" },
         Allgemein: {
-          DokumentUrl: "https://www.ris.bka.gv.at/Dokument.wxe?Abfrage=Justiz&Dokumentnummer=JJR_20230322_OGH0002_0050OB00456_2300000_001"
+          DokumentUrl:
+            "https://www.ris.bka.gv.at/Dokument.wxe?Abfrage=Justiz&Dokumentnummer=JJR_20230322_OGH0002_0050OB00456_2300000_001",
         },
         Judikatur: {
           Dokumenttyp: "Rechtssatz",
@@ -50,19 +54,21 @@ export const sampleAPIResponse = {
                 Dokumenttyp: "Text",
                 Gericht: "OGH",
                 Entscheidungsdatum: "2023-03-22",
-                Anmerkung: "Im vorliegenden Fall wurde eine Beleidigung im Internet festgestellt.",
-                DokumentUrl: "https://www.ris.bka.gv.at/Dokument.wxe?Abfrage=Justiz&Dokumentnummer=JJT_20230322_OGH0002_0050OB00456_2300000_000"
-              }
-            ]
-          }
-        }
-      }
-    }
-  ]
+                Anmerkung:
+                  "Im vorliegenden Fall wurde eine Beleidigung im Internet festgestellt.",
+                DokumentUrl:
+                  "https://www.ris.bka.gv.at/Dokument.wxe?Abfrage=Justiz&Dokumentnummer=JJT_20230322_OGH0002_0050OB00456_2300000_000",
+              },
+            ],
+          },
+        },
+      },
+    },
+  ],
 };
 
 export const sampleAPIResponseEmpty = {
-  Data: []
+  Data: [],
 };
 
 export const sampleAPIStringResponse = JSON.stringify(sampleAPIResponse);
