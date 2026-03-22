@@ -2,7 +2,10 @@
 
 ## Unreleased
 
-* Added a new `bundesrecht` command for RIS `Bundesrecht` / `Applikation=BrKons`, including optional fetching of matched provision full text.
+## 1.1.0 - 2026-03-22
+
+* Added a new `bundesrecht` command for RIS `Bundesrecht` / `Applikation=BrKons`, including support for targeted queries like `BDG § 3` and optional fetching of matched provision full text.
+* Improved Bundesrecht full-text retrieval to handle short paragraph texts, continue across fallback URLs, and fail fast when `--with-full-text` cannot be loaded.
 
 ## 1.0.0 - 2026-03-21
 

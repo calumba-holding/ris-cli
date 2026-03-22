@@ -59,6 +59,17 @@ pnpm build
 node bin/ris-cli.js --help
 ```
 
+### Maintainer release flow
+
+```bash
+# 1) update package.json version + CHANGELOG
+# 2) merge to main
+git switch main && git pull --ff-only
+make release
+```
+
+`make release` validates that you are on a clean `main`, that `package.json` matches the release version, runs checks, creates `v<version>`, and pushes the tag to trigger the release workflow.
+
 ## Configuration
 
 `ris-cli` reads configuration in this order:
