@@ -2,8 +2,11 @@
 
 ## Unreleased
 
+## 1.1.3 - 2026-03-22
+
 * Added release guardrails that validate GitHub repository visibility before provenance-enabled npm releases.
 * Added a `make release-doctor` preflight target for release policy checks before tagging.
+* Made the GitHub repository public so provenance-enabled npm trusted publishing can succeed.
 
 ## 1.1.2 - 2026-03-22
 
