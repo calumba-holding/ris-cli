@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 1.1.2 - 2026-03-22
+
+* Fixed npm Trusted Publishing in the release workflow by switching the publish step to `npm publish --provenance` on Node 24.
+
 ## 1.1.1 - 2026-03-22
 
 * Fixed CI and release publishing by aligning `pnpm/action-setup` with the pinned `packageManager` version from `package.json`.
