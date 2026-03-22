@@ -2,13 +2,14 @@
 
 `ris-cli` is a Node.js CLI that aims to become a practical wrapper around the Austrian RIS (Rechtsinformationssystem) API.
 
-Today, the implemented CLI surface is focused on **Judikatur**, specifically the RIS `Judikatur` endpoint currently used by this project. The broader RIS API surface is already documented in `docs/`, but not all of it is exposed as CLI commands yet.
+Today, the implemented CLI surface covers **Judikatur** plus an initial **Bundesrecht** command. The broader RIS API surface is already documented in `docs/`, but not all of it is exposed as CLI commands yet.
 
 ## Current scope
 
 Right now, `ris-cli` can:
 
 - search RIS **judgments / Judikatur** via the official API
+- search **Bundesrecht** (`BrKons`) and optionally fetch the current consolidated full text
 - sync matching Judikatur results into an Obsidian vault as Markdown/MDX files
 - track already processed documents in SQLite to avoid duplicates
 - run an interactive onboarding command that writes runtime config
@@ -19,10 +20,10 @@ Right now, `ris-cli` can:
 ## Project status
 
 - **Vision:** a CLI wrapper for the broader RIS API, not only one narrow search workflow
-- **Current implementation:** only the **Judikatur** part is wired into commands like `search`, `sync`, and `notify`
+- **Current implementation:** `search`, `sync`, and `notify` cover **Judikatur**; `bundesrecht` adds the first non-Judikatur RIS command for `Bundesrecht` / `BrKons`
 - **Documentation status:** `docs/` already contains researched material for additional RIS areas and endpoints
 
-If you are evaluating the project, treat the current CLI as **"RIS wrapper with Judikatur-first support"**, not yet as a full wrapper for every RIS endpoint.
+If you are evaluating the project, treat the current CLI as **"RIS wrapper with Judikatur-first support plus initial Bundesrecht coverage"**, not yet as a full wrapper for every RIS endpoint.
 
 ## Requirements
 
@@ -151,11 +152,13 @@ The underlying RIS API exposes multiple top-level areas beyond Judikatur. This r
 - `docs/judikatur/`
 - `docs/sonstige/`
 
-However, the executable CLI currently wraps only the Judikatur workflow used in this project.
+However, the executable CLI currently wraps only part of the documented RIS surface.
 
 That means:
 
 - `search` currently searches **Judikatur**
+- `bundesrecht` searches **Bundesrecht** via `Applikation=BrKons`
+- `bundesrecht --with-full-text` fetches the **current consolidated version** via the RIS current-law URL
 - `sync` currently syncs **Judikatur** documents into Obsidian
 - `notify` currently reports on newly synced **Judikatur** items
 - other documented RIS endpoint families are **not yet exposed as first-class CLI commands**
@@ -193,6 +196,18 @@ ris-cli search --json
 ```
 
 Search results are requested from RIS as decision texts and sorted server-side by date descending (newest first). Add `--with-summary` to fetch the full text of each result and generate a summary.
+
+### Search Bundesrecht
+
+This command queries RIS `Bundesrecht` with `Applikation=BrKons`.
+
+```bash
+ris-cli bundesrecht "BDG § 3"
+ris-cli bundesrecht "Beamten-Dienstrechtsgesetz § 3" --with-full-text
+ris-cli bundesrecht "Datenschutz" --limit 5 --json
+```
+
+By default, `--with-full-text` fetches the **current consolidated version** via the RIS `GesamteRechtsvorschriftUrl`.
 
 ### Search locally in synced files
 

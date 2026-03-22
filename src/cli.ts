@@ -4,6 +4,7 @@
 import * as fs from "fs";
 import { Command } from "commander";
 import { createSearchCommand } from "./commands/search.js";
+import { createBundesrechtCommand } from "./commands/bundesrecht.js";
 import { createSyncCommand } from "./commands/sync.js";
 import { createNotifyCommand } from "./commands/notify.js";
 import { createOnboardCommand } from "./commands/onboard.js";
@@ -19,9 +20,10 @@ program
   .name("ris-cli")
   .version(version, "-V, --version")
   .description(
-    "CLI for searching Austrian RIS judgments, syncing them to Obsidian, and sending notifications",
+    "CLI wrapper for the Austrian RIS API with Judikatur and Bundesrecht support",
   )
   .addCommand(createSearchCommand())
+  .addCommand(createBundesrechtCommand())
   .addCommand(createSyncCommand())
   .addCommand(createNotifyCommand())
   .addCommand(createOnboardCommand())
