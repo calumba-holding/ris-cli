@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 1.1.1 - 2026-03-22
+
+* Fixed CI and release publishing by aligning `pnpm/action-setup` with the pinned `packageManager` version from `package.json`.
+
 ## 1.1.0 - 2026-03-22
 
 * Added a new `bundesrecht` command for RIS `Bundesrecht` / `Applikation=BrKons`, including support for targeted queries like `BDG § 3` and optional fetching of matched provision full text.
