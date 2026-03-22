@@ -166,6 +166,7 @@ jobs:
           ./node_modules/.bin/ris-cli --version >/dev/null
           ./node_modules/.bin/ris-cli --help >/dev/null
           ./node_modules/.bin/ris-cli search --help >/dev/null
+          ./node_modules/.bin/ris-cli bundesrecht --help >/dev/null
           ./node_modules/.bin/ris-cli sync --help >/dev/null
           ./node_modules/.bin/ris-cli notify --help >/dev/null
           ./node_modules/.bin/ris-cli onboard --help >/dev/null

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+* Added a new `bundesrecht` command for RIS `Bundesrecht` / `Applikation=BrKons`, including optional full-text fetching of the current consolidated law version.
+
 ## 1.0.0 - 2026-03-21
 
 * Added the initial `ris-cli` CLI for searching Austrian RIS judgments, syncing results into Obsidian, and tracking processed entries in SQLite.

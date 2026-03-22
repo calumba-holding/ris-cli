@@ -1,7 +1,7 @@
 {
   "name": "@calumba/ris-cli",
   "version": "1.0.0",
-  "description": "CLI wrapper for the Austrian RIS API with current Judikatur-first support",
+  "description": "CLI wrapper for the Austrian RIS API with Judikatur and Bundesrecht support",
   "author": "Pascal Schott",
   "license": "MIT",
   "keywords": [
@@ -53,7 +53,7 @@
     "clean": "rm -rf dist",
     "format": "prettier --write \"{src,bin}/**/*.{ts,js}\" \"*.{json,md}\"",
     "format:check": "prettier --check \"{src,bin}/**/*.{ts,js}\" \"*.{json,md}\"",
-    "smoke": "pnpm build && node bin/ris-cli.js --version && node bin/ris-cli.js search --help && node bin/ris-cli.js sync --help && node bin/ris-cli.js notify --help && node bin/ris-cli.js onboard --help",
+    "smoke": "pnpm build && node bin/ris-cli.js --version && node bin/ris-cli.js search --help && node bin/ris-cli.js bundesrecht --help && node bin/ris-cli.js sync --help && node bin/ris-cli.js notify --help && node bin/ris-cli.js onboard --help",
     "prepublishOnly": "pnpm build && pnpm test"
   },
   "dependencies": {
