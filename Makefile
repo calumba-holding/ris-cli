@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help install install-ci build lint typecheck test test-watch test-ui smoke check format format-check clean release
+.PHONY: help install install-ci build lint typecheck test test-watch test-ui smoke check format format-check clean release-doctor release
 
 PNPM ?= pnpm
 VERSION ?= $(shell node -p "require('./package.json').version")
@@ -21,7 +21,8 @@ help:
 	@echo "  make format        - Format source and root docs/config files"
 	@echo "  make format-check  - Verify formatting"
 	@echo "  make clean         - Remove build artifacts"
-	@echo "  make release       - Verify main/package version, then tag and push a release"
+	@echo "  make release-doctor - Verify release prerequisites and publishing policy"
+	@echo "  make release       - Run release-doctor, then tag and push a release"
 
 install:
 	@$(PNPM) install
@@ -65,7 +66,8 @@ format-check:
 clean:
 	@$(PNPM) clean
 
-release:
+release-doctor:
+	@command -v gh >/dev/null 2>&1 || (echo "❌ gh CLI is required for release checks" && exit 1)
 	@test -n "$(VERSION)" || (echo "❌ VERSION is required" && exit 1)
 	@test "$$(git branch --show-current)" = "main" || (echo "❌ Release must be created from the main branch" && exit 1)
 	@git diff --quiet && git diff --cached --quiet || (echo "❌ Working tree must be clean before release" && exit 1)
@@ -80,6 +82,15 @@ release:
 		echo "❌ Tag $(RELEASE_TAG) already exists"; \
 		exit 1; \
 	fi
+	@REPO_VISIBILITY="$$(gh repo view --json visibility -q .visibility | tr '[:upper:]' '[:lower:]')"; \
+		PACKAGE_PROVENANCE="$$(node -p "String(Boolean(require('./package.json').publishConfig?.provenance))")"; \
+		if [ "$$PACKAGE_PROVENANCE" = "true" ] && [ "$$REPO_VISIBILITY" != "public" ]; then \
+			echo "❌ npm provenance requires a public GitHub repository (current visibility: $$REPO_VISIBILITY)"; \
+			exit 1; \
+		fi; \
+		echo "✅ Release doctor passed for $(RELEASE_TAG) (visibility: $$REPO_VISIBILITY, provenance: $$PACKAGE_PROVENANCE)"
+
+release: release-doctor
 	@$(PNPM) check
 	@$(PNPM) smoke
 	@git tag -a "$(RELEASE_TAG)" -m "Release $(RELEASE_TAG)"

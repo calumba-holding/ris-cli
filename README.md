@@ -65,10 +65,13 @@ node bin/ris-cli.js --help
 # 1) update package.json version + CHANGELOG
 # 2) merge to main
 git switch main && git pull --ff-only
+make release-doctor
 make release
 ```
 
-`make release` validates that you are on a clean `main`, that `package.json` matches the release version, runs checks, creates `v<version>`, and pushes the tag to trigger the release workflow.
+`make release-doctor` validates that you are on a clean `main`, that `package.json` matches the release version, that local `main` matches `origin/main`, and that npm provenance is only used from a public GitHub repository.
+
+`make release` runs `make release-doctor`, then executes the local release checks, creates `v<version>`, and pushes the tag to trigger the release workflow.
 
 ## Configuration
 

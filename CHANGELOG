@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+* Added release guardrails that validate GitHub repository visibility before provenance-enabled npm releases.
+* Added a `make release-doctor` preflight target for release policy checks before tagging.
+
 ## 1.1.2 - 2026-03-22
 
 * Fixed npm Trusted Publishing in the release workflow by switching the publish step to `npm publish --provenance` on Node 24.
