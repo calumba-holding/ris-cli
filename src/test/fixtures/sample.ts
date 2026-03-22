@@ -71,4 +71,72 @@ export const sampleAPIResponseEmpty = {
   Data: [],
 };
 
+export const sampleBundesrechtAPIResponse = {
+  Data: [
+    {
+      Metadaten: {
+        Technisch: { ID: "NOR40271932" },
+        Allgemein: {
+          DokumentUrl:
+            "https://www.ris.bka.gv.at/eli/bgbl/i/1997/12/P44b/NOR40271932",
+        },
+        Bundesrecht: {
+          Kurztitel: "Waffengesetz 1996",
+          BrKons: {
+            Dokumenttyp: "Paragraph",
+            ArtikelParagraphAnlage: "§ 44b",
+            Inkrafttretensdatum: "9000-01-01",
+            Gesetzesnummer: "10006016",
+            GesamteRechtsvorschriftUrl:
+              "https://www.ris.bka.gv.at/GeltendeFassung.wxe?Abfrage=Bundesnormen&Gesetzesnummer=10006016",
+          },
+        },
+      },
+      Dokumentliste: {
+        ContentReference: {
+          Urls: {
+            ContentUrl: [
+              {
+                DataType: "Xml",
+                Url: "https://www.ris.bka.gv.at/Dokumente/Bundesnormen/NOR40271932/NOR40271932.xml",
+              },
+              {
+                DataType: "Html",
+                Url: "https://www.ris.bka.gv.at/Dokumente/Bundesnormen/NOR40271932/NOR40271932.html",
+              },
+              {
+                DataType: "Rtf",
+                Url: "https://www.ris.bka.gv.at/Dokumente/Bundesnormen/NOR40271932/NOR40271932.rtf",
+              },
+            ],
+          },
+        },
+      },
+    },
+    {
+      Metadaten: {
+        Technisch: { ID: "NOR40200000" },
+        Allgemein: {
+          DokumentUrl:
+            "https://www.ris.bka.gv.at/eli/bgbl/i/2000/1/P1/NOR40200000",
+        },
+        Bundesrecht: {
+          Kurztitel: "Datenschutzgesetz",
+          BrKons: {
+            Dokumenttyp: "Paragraph",
+            ArtikelParagraphAnlage: "§ 1",
+            Inkrafttretensdatum: "2024-01-01",
+            Gesetzesnummer: "10001597",
+            GesamteRechtsvorschriftUrl:
+              "https://www.ris.bka.gv.at/GeltendeFassung.wxe?Abfrage=Bundesnormen&Gesetzesnummer=10001597",
+          },
+        },
+      },
+    },
+  ],
+};
+
 export const sampleAPIStringResponse = JSON.stringify(sampleAPIResponse);
+export const sampleBundesrechtAPIStringResponse = JSON.stringify(
+  sampleBundesrechtAPIResponse,
+);

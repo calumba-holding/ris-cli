@@ -6,6 +6,8 @@ import type {
   SearchResult,
   SearchOptions,
   JudgmentDetail,
+  LawSearchResult,
+  LawDetail,
 } from "../types/index.js";
 import { backoff } from "../lib/utils.js";
 
@@ -113,6 +115,110 @@ export class RISAdapter {
     }
   }
 
+  async searchBundesrecht(
+    query: string,
+    options: Pick<SearchOptions, "limit" | "offset"> = {},
+  ): Promise<LawSearchResult[]> {
+    const normalizedLimit = this.normalizeLimit(options.limit);
+    const normalizedOffset = this.normalizeOffset(options.offset);
+
+    if (normalizedLimit <= 0) {
+      return [];
+    }
+
+    try {
+      const url = `${this.apiUrl}/Bundesrecht`;
+      const strategy = this.getPaginationStrategy(
+        normalizedOffset,
+        normalizedLimit,
+      );
+      const baseParams = this.buildBundesrechtSearchParams(
+        query,
+        strategy.pageSize,
+      );
+      const results: LawSearchResult[] = [];
+
+      for (let index = 0; index < strategy.pagesNeeded; index += 1) {
+        const pageNumber = strategy.startPage + index;
+        const response = await this.fetchWithRetry(url, {
+          ...baseParams,
+          Seitennummer: pageNumber,
+        });
+
+        const pageResults = this.parseBundesrechtResults(
+          response.data,
+          strategy.pageSize,
+        );
+        results.push(...pageResults);
+
+        if (pageResults.length < strategy.pageSize) {
+          break;
+        }
+      }
+
+      return results.slice(
+        strategy.firstPageOffset,
+        strategy.firstPageOffset + normalizedLimit,
+      );
+    } catch (error) {
+      console.error(`Bundesrecht search failed for query "${query}":`, error);
+      return [];
+    }
+  }
+
+  async fetchBundesrechtDetail(
+    result: LawSearchResult,
+  ): Promise<LawDetail | null> {
+    const candidateUrls = [
+      result.contentUrls?.html,
+      result.contentUrls?.xml,
+      result.contentUrls?.rtf,
+      result.currentLawUrl,
+      result.url,
+    ].filter((value, index, arr): value is string => {
+      return (
+        typeof value === "string" &&
+        value.length > 0 &&
+        arr.indexOf(value) === index
+      );
+    });
+
+    try {
+      for (const candidateUrl of candidateUrls) {
+        const response = await axios.get(candidateUrl, {
+          timeout: 30000,
+          headers: {
+            "User-Agent": "ris-cli/1.0 (research tool)",
+            Accept: "text/html,application/xml,text/xml,*/*;q=0.8",
+          },
+          responseType: "text",
+        });
+
+        const extracted = await this.extractTextFromDocument(
+          String(response.data),
+          candidateUrl,
+          response.headers?.["content-type"],
+        );
+
+        if (extracted.trim().length > 200) {
+          return this.buildLawDetailFromExtractedText(
+            result,
+            extracted,
+            candidateUrl,
+          );
+        }
+      }
+
+      return null;
+    } catch (error) {
+      console.error(
+        `Failed to fetch Bundesrecht detail for ${result.url}:`,
+        error,
+      );
+      return null;
+    }
+  }
+
   /**
    * Fetch detailed information (incl. full text) for a specific judgment.
    *
@@ -148,6 +254,7 @@ export class RISAdapter {
           const extracted = await this.extractTextFromDocument(
             String(response.data),
             c.url,
+            response.headers?.["content-type"],
           );
           if (extracted && extracted.trim().length > 500) {
             return this.buildDetailFromExtractedText(result, extracted, c.url);
@@ -186,6 +293,37 @@ export class RISAdapter {
       const response = await this.client.get(url, { params });
       return response;
     }, maxRetries);
+  }
+
+  private buildBundesrechtSearchParams(
+    query: string,
+    pageSize: number,
+  ): Record<string, any> {
+    const parsedQuery = this.parseBundesrechtQuery(query);
+    const params: Record<string, any> = {
+      Applikation: "BrKons",
+      DokumenteProSeite: this.mapPageSizeToApiValue(pageSize),
+      "Sortierung.SortedByColumn": "Inkrafttretensdatum",
+      "Sortierung.SortDirection": "Descending",
+    };
+
+    if (parsedQuery.title) {
+      params.Titel = parsedQuery.title;
+    } else {
+      params.Suchworte = query;
+    }
+
+    if (parsedQuery.sectionType) {
+      params["Abschnitt.Typ"] = parsedQuery.sectionType;
+    }
+    if (parsedQuery.sectionFrom) {
+      params["Abschnitt.Von"] = parsedQuery.sectionFrom;
+    }
+    if (parsedQuery.sectionTo) {
+      params["Abschnitt.Bis"] = parsedQuery.sectionTo;
+    }
+
+    return params;
   }
 
   private buildSearchParams(
@@ -270,6 +408,103 @@ export class RISAdapter {
     return Math.max(0, Math.floor(offset));
   }
 
+  private extractDataArray(data: any): any[] {
+    let cleanData = data;
+
+    if (typeof data === "string") {
+      const jsonMatch = data.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        try {
+          cleanData = JSON.parse(jsonMatch[0]);
+        } catch {
+          const dataMatch = data.match(/"Data"\s*:\s*\[([\s\S]*)\]/);
+          if (dataMatch) {
+            try {
+              cleanData = { Data: JSON.parse(`[${dataMatch[1]}]`) };
+            } catch {
+              return [];
+            }
+          } else {
+            return [];
+          }
+        }
+      } else {
+        return [];
+      }
+    }
+
+    if (cleanData?.OgdSearchResult?.OgdDocumentResults?.OgdDocumentReference) {
+      cleanData =
+        cleanData.OgdSearchResult.OgdDocumentResults.OgdDocumentReference.map(
+          (item: any) => item.Data,
+        );
+    }
+
+    let dataArray = cleanData?.Data || cleanData?.data;
+
+    if (!Array.isArray(dataArray) && cleanData?.Data?.Data) {
+      dataArray = cleanData.Data.Data;
+    }
+
+    if (!Array.isArray(dataArray) && Array.isArray(cleanData)) {
+      dataArray = cleanData;
+    }
+
+    return Array.isArray(dataArray) ? dataArray : [];
+  }
+
+  /**
+   * Parse API response to Bundesrecht search results.
+   */
+  private parseBundesrechtResults(data: any, limit: number): LawSearchResult[] {
+    const results: LawSearchResult[] = [];
+    const dataArray = this.extractDataArray(data);
+
+    for (const item of dataArray) {
+      if (results.length >= limit) break;
+
+      const metadata = item?.Metadaten || item?.metadata;
+      const bundesrecht = metadata?.Bundesrecht;
+      const brKons = bundesrecht?.BrKons;
+
+      if (!bundesrecht || !brKons) continue;
+
+      const documentUrl =
+        metadata?.Allgemein?.DokumentUrl || metadata?.DokumentUrl || "";
+      const currentLawUrl = brKons?.GesamteRechtsvorschriftUrl;
+      const shortTitle = this.readStringValue(bundesrecht?.Kurztitel);
+      const section = this.readStringValue(brKons?.ArtikelParagraphAnlage);
+      const title = [shortTitle, section].filter(Boolean).join(" – ");
+      const lawNumber = this.readStringValue(brKons?.Gesetzesnummer);
+      const documentType = this.readStringValue(brKons?.Dokumenttyp);
+      const effectiveDate = this.normalizeDate(
+        this.readStringValue(brKons?.Inkrafttretensdatum) || "",
+      );
+
+      if (!title) continue;
+
+      const id =
+        this.extractDokumentnummer(documentUrl) ||
+        this.readStringValue(metadata?.Technisch?.ID) ||
+        this.generateId(documentUrl || currentLawUrl || title);
+
+      results.push({
+        id,
+        title,
+        documentType,
+        section,
+        lawNumber,
+        effectiveDate: effectiveDate || undefined,
+        url: documentUrl || currentLawUrl || "",
+        currentLawUrl,
+        contentUrls: this.extractContentUrls(item),
+        snippet: shortTitle,
+      });
+    }
+
+    return results;
+  }
+
   /**
    * Parse API response to SearchResult[]
    */
@@ -279,58 +514,7 @@ export class RISAdapter {
     limit: number,
   ): SearchResult[] {
     const results: SearchResult[] = [];
-
-    // Handle response - it may be a string or object with wrapped data
-    let cleanData = data;
-
-    if (typeof data === "string") {
-      // Try to find and extract the JSON object
-      const jsonMatch = data.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        try {
-          cleanData = JSON.parse(jsonMatch[0]);
-        } catch (e) {
-          // Try to find Data array directly in string
-          const dataMatch = data.match(/"Data"\s*:\s*\[([\s\S]*)\]/);
-          if (dataMatch) {
-            try {
-              cleanData = { Data: JSON.parse(`[${dataMatch[1]}]`) };
-            } catch {
-              return results;
-            }
-          } else {
-            return results;
-          }
-        }
-      } else {
-        return results;
-      }
-    }
-
-    // Handle OgdSearchResult wrapper structure from RIS API
-    if (cleanData?.OgdSearchResult?.OgdDocumentResults?.OgdDocumentReference) {
-      // OgdSearchResult structure - data is in .Data.Metadaten
-      cleanData =
-        cleanData.OgdSearchResult.OgdDocumentResults.OgdDocumentReference.map(
-          (item: any) => item.Data,
-        );
-    }
-
-    // Navigate to the Data array
-    let dataArray = cleanData?.Data || cleanData?.data;
-
-    // Handle nested data structure
-    if (!Array.isArray(dataArray) && cleanData?.Data?.Data) {
-      dataArray = cleanData.Data.Data;
-    }
-
-    // Handle OgdSearchResult already processed above
-    if (!Array.isArray(dataArray) && Array.isArray(cleanData)) {
-      // cleanData is already the array of Data objects
-      dataArray = cleanData;
-    }
-
-    if (!dataArray || !Array.isArray(dataArray)) return results;
+    const dataArray = this.extractDataArray(data);
 
     for (const item of dataArray) {
       if (results.length >= limit) break;
@@ -405,6 +589,35 @@ export class RISAdapter {
     }
 
     return results;
+  }
+
+  private readStringValue(value: unknown): string | undefined {
+    return typeof value === "string" && value.trim().length > 0
+      ? value.trim()
+      : undefined;
+  }
+
+  private parseBundesrechtQuery(query: string): {
+    title?: string;
+    sectionType?: "Paragraph";
+    sectionFrom?: string;
+    sectionTo?: string;
+  } {
+    const normalized = query.replace(/\s+/g, " ").trim();
+    const paragraphMatch = normalized.match(
+      /^(?<title>.+?)\s+§\s*(?<from>[0-9]+[a-zA-Z]?)(?:\s*[-–]\s*(?<to>[0-9]+[a-zA-Z]?))?$/,
+    );
+
+    if (!paragraphMatch?.groups) {
+      return {};
+    }
+
+    return {
+      title: paragraphMatch.groups.title.trim(),
+      sectionType: "Paragraph",
+      sectionFrom: paragraphMatch.groups.from,
+      sectionTo: paragraphMatch.groups.to ?? paragraphMatch.groups.from,
+    };
   }
 
   /**
@@ -559,6 +772,7 @@ export class RISAdapter {
           fullText = await this.extractTextFromDocument(
             String(response.data),
             href,
+            response.headers?.["content-type"],
           );
           if (fullText.length > 500) break;
         } catch {
@@ -602,15 +816,38 @@ export class RISAdapter {
   private async extractTextFromDocument(
     content: string,
     url: string,
+    contentType?: string,
   ): Promise<string> {
-    // HTML / XML
-    if (url.endsWith(".html") || url.endsWith(".xml")) {
-      const cheerio = await import("cheerio");
-      const xmlMode = url.endsWith(".xml");
-      const $ = cheerio.load(content, { xmlMode });
+    const lowerContentType = contentType?.toLowerCase() || "";
+    const isXml =
+      url.endsWith(".xml") ||
+      lowerContentType.includes("xml") ||
+      /^\s*<\?xml/i.test(content);
+    const isHtml =
+      url.endsWith(".html") ||
+      lowerContentType.includes("text/html") ||
+      /^\s*<!doctype html/i.test(content) ||
+      /^\s*<html/i.test(content) ||
+      content.includes('class="documentContent"') ||
+      content.includes('class="contentBlock"');
 
-      // Drop scripts/styles if present (HTML)
-      $("script, style, noscript").remove();
+    if (isXml || isHtml) {
+      const cheerio = await import("cheerio");
+      const $ = cheerio.load(content, { xmlMode: isXml && !isHtml });
+
+      $("script, style, noscript, .sr-only, .onlyScreenreader").remove();
+
+      if (isHtml) {
+        const bundesrechtText = $(".documentContent .contentBlock")
+          .toArray()
+          .map((node) => $(node).text().trim())
+          .filter((text) => text.length > 0)
+          .join("\n\n");
+
+        if (bundesrechtText.length > 0) {
+          return bundesrechtText;
+        }
+      }
 
       const bodyText = $("body").text();
       const text = (
@@ -619,12 +856,10 @@ export class RISAdapter {
       return text;
     }
 
-    // RTF (very naive, but better than dumping control codes)
-    if (url.endsWith(".rtf")) {
+    if (url.endsWith(".rtf") || lowerContentType.includes("rtf")) {
       return this.rtfToText(content);
     }
 
-    // Unknown / PDF etc.
     return content;
   }
 
@@ -666,6 +901,28 @@ export class RISAdapter {
         decision: undefined,
         ogiNumber: undefined,
         legalBase: undefined,
+      },
+      fullText,
+    };
+  }
+
+  private buildLawDetailFromExtractedText(
+    result: LawSearchResult,
+    extractedText: string,
+    sourceUrl: string,
+  ): LawDetail {
+    const fullText = this.cleanText(extractedText);
+
+    return {
+      ...result,
+      url: sourceUrl || result.url,
+      snippet: fullText.substring(0, 200) + "...",
+      metadata: {
+        documentType: result.documentType,
+        section: result.section,
+        lawNumber: result.lawNumber,
+        effectiveDate: result.effectiveDate,
+        currentLawUrl: result.currentLawUrl,
       },
       fullText,
     };
