@@ -9,7 +9,7 @@ Today, the implemented CLI surface covers **Judikatur** plus an initial **Bundes
 Right now, `ris-cli` can:
 
 - search RIS **judgments / Judikatur** via the official API
-- search **Bundesrecht** (`BrKons`) and optionally fetch the current consolidated full text
+- search **Bundesrecht** (`BrKons`) and optionally fetch matched provision full text
 - sync matching Judikatur results into an Obsidian vault as Markdown/MDX files
 - track already processed documents in SQLite to avoid duplicates
 - run an interactive onboarding command that writes runtime config
@@ -158,7 +158,7 @@ That means:
 
 - `search` currently searches **Judikatur**
 - `bundesrecht` searches **Bundesrecht** via `Applikation=BrKons`
-- `bundesrecht --with-full-text` fetches the **current consolidated version** via the RIS current-law URL
+- `bundesrecht --with-full-text` fetches the **matched provision text** via RIS content URLs with page fallbacks
 - `sync` currently syncs **Judikatur** documents into Obsidian
 - `notify` currently reports on newly synced **Judikatur** items
 - other documented RIS endpoint families are **not yet exposed as first-class CLI commands**
@@ -207,7 +207,7 @@ ris-cli bundesrecht "Beamten-Dienstrechtsgesetz § 3" --with-full-text
 ris-cli bundesrecht "Datenschutz" --limit 5 --json
 ```
 
-By default, `--with-full-text` fetches the **current consolidated version** via the RIS `GesamteRechtsvorschriftUrl`.
+By default, `--with-full-text` fetches the **matched provision text** via RIS content URLs and only falls back to page scraping when needed.
 
 ### Search locally in synced files
 
