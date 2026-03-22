@@ -41,12 +41,12 @@ jobs:
           REPO_VISIBILITY: ${{ github.event.repository.visibility }}
         run: |
           PACKAGE_PROVENANCE=$(python - <<'PY'
-import json
-with open('package.json', 'r', encoding='utf-8') as file:
-    data = json.load(file)
-print(str(bool(data.get('publishConfig', {}).get('provenance', False))).lower())
-PY
-)
+          import json
+          with open('package.json', 'r', encoding='utf-8') as file:
+              data = json.load(file)
+          print(str(bool(data.get('publishConfig', {}).get('provenance', False))).lower())
+          PY
+          )
 
           if [ "$PACKAGE_PROVENANCE" = "true" ] && [ "$REPO_VISIBILITY" != "public" ]; then
             echo "❌ npm provenance requires a public GitHub repository (current visibility: $REPO_VISIBILITY)"
