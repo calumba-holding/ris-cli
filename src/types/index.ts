@@ -48,6 +48,24 @@ export interface SearchResult {
   snippet?: string;
 }
 
+export interface LawSearchResult {
+  id: string;
+  title: string;
+  documentType?: string;
+  section?: string;
+  lawNumber?: string;
+  effectiveDate?: string;
+  url: string;
+  currentLawUrl?: string;
+  contentUrls?: {
+    xml?: string;
+    html?: string;
+    rtf?: string;
+    pdf?: string;
+  };
+  snippet?: string;
+}
+
 export interface SearchOptions {
   limit?: number;
   offset?: number;
@@ -65,6 +83,17 @@ export interface JudgmentDetail extends SearchResult {
     decision?: string;
     ogiNumber?: string;
     legalBase?: string[];
+  };
+  fullText: string;
+}
+
+export interface LawDetail extends LawSearchResult {
+  metadata: {
+    documentType?: string;
+    section?: string;
+    lawNumber?: string;
+    effectiveDate?: string;
+    currentLawUrl?: string;
   };
   fullText: string;
 }

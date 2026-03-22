@@ -1,14 +1,21 @@
 /// <reference types="vitest" />
 
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import axios from "axios";
 import { RISAdapter } from "../adapters/ris.js";
 import {
   sampleAPIResponse,
   sampleAPIResponseEmpty,
   sampleAPIStringResponse,
+  sampleBundesrechtAPIResponse,
+  sampleBundesrechtAPIStringResponse,
 } from "../test/fixtures/sample.js";
 
 describe("RIS Adapter", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   describe("search request building", () => {
     it("should send Justiz application, server-side sorting, paging, and court filter params", async () => {
       const adapter = new RISAdapter();
@@ -230,6 +237,140 @@ describe("RIS Adapter", () => {
       );
 
       expect(results).toHaveLength(1);
+    });
+  });
+
+  describe("Bundesrecht", () => {
+    it("should send BrKons params and default to current consolidated sorting", async () => {
+      const adapter = new RISAdapter();
+      const fetchWithRetry = vi
+        .fn()
+        .mockResolvedValue({ data: sampleBundesrechtAPIResponse });
+      (adapter as any).fetchWithRetry = fetchWithRetry;
+
+      await adapter.searchBundesrecht("Datenschutz", {
+        limit: 10,
+        offset: 0,
+      });
+
+      expect(fetchWithRetry).toHaveBeenCalledTimes(1);
+      expect(fetchWithRetry).toHaveBeenCalledWith(
+        "https://data.bka.gv.at/ris/api/v2.6/Bundesrecht",
+        expect.objectContaining({
+          Applikation: "BrKons",
+          Suchworte: "Datenschutz",
+          DokumenteProSeite: "Ten",
+          Seitennummer: 1,
+          "Sortierung.SortedByColumn": "Inkrafttretensdatum",
+          "Sortierung.SortDirection": "Descending",
+        }),
+      );
+    });
+
+    it("should map a paragraph query to Titel plus Abschnitt filters", async () => {
+      const adapter = new RISAdapter();
+      const fetchWithRetry = vi
+        .fn()
+        .mockResolvedValue({ data: sampleBundesrechtAPIResponse });
+      (adapter as any).fetchWithRetry = fetchWithRetry;
+
+      await adapter.searchBundesrecht("BDG § 3", {
+        limit: 10,
+        offset: 0,
+      });
+
+      expect(fetchWithRetry).toHaveBeenCalledWith(
+        "https://data.bka.gv.at/ris/api/v2.6/Bundesrecht",
+        expect.objectContaining({
+          Applikation: "BrKons",
+          Titel: "BDG",
+          "Abschnitt.Typ": "Paragraph",
+          "Abschnitt.Von": "3",
+          "Abschnitt.Bis": "3",
+          DokumenteProSeite: "Ten",
+          Seitennummer: 1,
+        }),
+      );
+    });
+
+    it("should parse Bundesrecht results", () => {
+      const adapter = new RISAdapter();
+      const results = (adapter as any).parseBundesrechtResults(
+        sampleBundesrechtAPIResponse,
+        10,
+      );
+
+      expect(results).toHaveLength(2);
+      expect(results[0]).toMatchObject({
+        id: "NOR40271932",
+        title: "Waffengesetz 1996 – § 44b",
+        documentType: "Paragraph",
+        section: "§ 44b",
+        lawNumber: "10006016",
+        effectiveDate: "9000-01-01",
+        url: "https://www.ris.bka.gv.at/eli/bgbl/i/1997/12/P44b/NOR40271932",
+        currentLawUrl:
+          "https://www.ris.bka.gv.at/GeltendeFassung.wxe?Abfrage=Bundesnormen&Gesetzesnummer=10006016",
+        contentUrls: {
+          html: "https://www.ris.bka.gv.at/Dokumente/Bundesnormen/NOR40271932/NOR40271932.html",
+        },
+      });
+    });
+
+    it("should handle Bundesrecht string responses", () => {
+      const adapter = new RISAdapter();
+      const results = (adapter as any).parseBundesrechtResults(
+        sampleBundesrechtAPIStringResponse,
+        10,
+      );
+
+      expect(results).toHaveLength(2);
+      expect(results[1]?.title).toBe("Datenschutzgesetz – § 1");
+    });
+
+    it("should fetch Bundesrecht detail from the current-law URL by default", async () => {
+      const adapter = new RISAdapter();
+      const law = {
+        id: "NOR40271932",
+        title: "Waffengesetz 1996 – § 44b",
+        documentType: "Paragraph",
+        section: "§ 44b",
+        lawNumber: "10006016",
+        effectiveDate: "9000-01-01",
+        url: "https://www.ris.bka.gv.at/eli/bgbl/i/1997/12/P44b/NOR40271932",
+        currentLawUrl:
+          "https://www.ris.bka.gv.at/GeltendeFassung.wxe?Abfrage=Bundesnormen&Gesetzesnummer=10006016",
+        contentUrls: {
+          html: "https://www.ris.bka.gv.at/Dokumente/Bundesnormen/NOR40271932/NOR40271932.html",
+        },
+      };
+
+      const axiosGet = vi.spyOn(axios, "get").mockResolvedValue({
+        data: '<!DOCTYPE html><html><body><div id="header">Header</div><div class="documentContent"><div class="contentBlock"><h5><span aria-hidden="true">§&nbsp;3.</span></h5><div class="content"><span>Der Beamte hat seine dienstlichen Aufgaben treu zu besorgen. Dieser Bundesrecht-Text stammt aus der aktuellen konsolidierten Fassung und ist absichtlich lang genug, damit die Detailabfrage nicht auf die Fallback-URL wechseln muss.</span></div></div></div></body></html>',
+        headers: { "content-type": "text/html; charset=utf-8" },
+      } as any);
+
+      const detail = await adapter.fetchBundesrechtDetail(law);
+
+      expect(axiosGet).toHaveBeenCalledTimes(1);
+      expect(axiosGet).toHaveBeenCalledWith(
+        law.contentUrls.html,
+        expect.objectContaining({ responseType: "text" }),
+      );
+      expect(detail).toMatchObject({
+        title: law.title,
+        url: law.contentUrls.html,
+        metadata: {
+          lawNumber: "10006016",
+          currentLawUrl: law.currentLawUrl,
+        },
+      });
+      expect(detail?.fullText).toContain("§ 3.");
+      expect(detail?.fullText).toContain(
+        "Der Beamte hat seine dienstlichen Aufgaben treu zu besorgen.",
+      );
+      expect(detail?.fullText).not.toContain("<!DOCTYPE html>");
+      expect(detail?.fullText).not.toContain("Header");
     });
   });
 
