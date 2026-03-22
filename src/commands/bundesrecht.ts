@@ -14,14 +14,14 @@ interface BundesrechtOptions {
 export function createBundesrechtCommand(): Command {
   return new Command("bundesrecht")
     .description(
-      "Search RIS Bundesrecht (BrKons) and optionally fetch the current consolidated full text",
+      "Search RIS Bundesrecht (BrKons) and optionally fetch the matched provision full text",
     )
     .argument("<query>", "Search query, e.g. 'BDG § 3'")
     .option("-l, --limit <number>", "Maximum results", "20")
     .option("-o, --offset <number>", "Results offset", "0")
     .option(
       "--with-full-text",
-      "Fetch the current consolidated full text via the RIS current-law URL",
+      "Fetch the matched provision full text via RIS content URLs and page fallbacks",
     )
     .option("--json", "Output as JSON")
     .action(async (query: string, options: BundesrechtOptions) => {
@@ -87,18 +87,20 @@ export async function executeBundesrecht(
 
 async function fetchFullTextResults(
   results: LawSearchResult[],
-): Promise<Array<LawSearchResult | LawDetail>> {
+): Promise<LawDetail[]> {
   const adapter = getRISAdapter();
-  const enriched: Array<LawSearchResult | LawDetail> = [];
+  const enriched: LawDetail[] = [];
 
   for (const result of results) {
-    try {
-      const detail = await adapter.fetchBundesrechtDetail(result);
-      enriched.push(detail ?? result);
-    } catch (error) {
-      console.warn(`Failed to fetch full text for ${result.url}:`, error);
-      enriched.push(result);
+    const detail = await adapter.fetchBundesrechtDetail(result);
+
+    if (!detail) {
+      throw new Error(
+        `Failed to fetch full text for ${result.title} (${result.url}).`,
+      );
     }
+
+    enriched.push(detail);
   }
 
   return enriched;

@@ -88,11 +88,10 @@ describe("bundesrecht command", () => {
       section: "§ 44b",
       lawNumber: "10006016",
       effectiveDate: "9000-01-01",
-      url: "https://www.ris.bka.gv.at/GeltendeFassung.wxe?Abfrage=Bundesnormen&Gesetzesnummer=10006016",
+      url: "https://www.ris.bka.gv.at/Dokumente/Bundesnormen/NOR40271932/NOR40271932.html",
       currentLawUrl:
         "https://www.ris.bka.gv.at/GeltendeFassung.wxe?Abfrage=Bundesnormen&Gesetzesnummer=10006016",
-      fullText:
-        "§ 3. Aktuelle konsolidierte Fassung des Bundesrechts mit dem gesuchten Paragraphen.",
+      fullText: "§ 44b. Der konkrete Treffertext wurde erfolgreich geladen.",
       metadata: {
         lawNumber: "10006016",
         currentLawUrl:
@@ -106,9 +105,28 @@ describe("bundesrecht command", () => {
 
     expect(mocks.adapter.fetchBundesrechtDetail).toHaveBeenCalledTimes(1);
     expect(logSpy.mock.calls.flat().join(" ")).toContain(
-      "Aktuelle konsolidierte Fassung des Bundesrechts mit dem gesuchten Paragraphen.",
+      "Der konkrete Treffertext wurde erfolgreich geladen.",
     );
     expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it("fails fast when --with-full-text cannot be fetched", async () => {
+    mocks.adapter.searchBundesrecht.mockResolvedValue([
+      {
+        id: "NOR40274148",
+        title: "Beamten-Dienstrechtsgesetz 1979 – § 3",
+        url: "https://www.ris.bka.gv.at/Dokumente/Bundesnormen/NOR40274148/NOR40274148.html",
+      },
+    ]);
+    mocks.adapter.fetchBundesrechtDetail.mockResolvedValue(null);
+
+    await expect(
+      executeBundesrecht("BDG § 3", {
+        withFullText: true,
+      }),
+    ).rejects.toThrow(
+      "Failed to fetch full text for Beamten-Dienstrechtsgesetz 1979 – § 3",
+    );
   });
 
   it("prints the matched BDG paragraph and its fetched full text", async () => {

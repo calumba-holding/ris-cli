@@ -328,7 +328,7 @@ describe("RIS Adapter", () => {
       expect(results[1]?.title).toBe("Datenschutzgesetz – § 1");
     });
 
-    it("should fetch Bundesrecht detail from the current-law URL by default", async () => {
+    it("should fetch Bundesrecht detail from direct content URLs first", async () => {
       const adapter = new RISAdapter();
       const law = {
         id: "NOR40271932",
@@ -346,7 +346,7 @@ describe("RIS Adapter", () => {
       };
 
       const axiosGet = vi.spyOn(axios, "get").mockResolvedValue({
-        data: '<!DOCTYPE html><html><body><div id="header">Header</div><div class="documentContent"><div class="contentBlock"><h5><span aria-hidden="true">§&nbsp;3.</span></h5><div class="content"><span>Der Beamte hat seine dienstlichen Aufgaben treu zu besorgen. Dieser Bundesrecht-Text stammt aus der aktuellen konsolidierten Fassung und ist absichtlich lang genug, damit die Detailabfrage nicht auf die Fallback-URL wechseln muss.</span></div></div></div></body></html>',
+        data: '<!DOCTYPE html><html><body><div id="header">Header</div><div class="documentContent"><div class="contentBlock"><h5><span aria-hidden="true">§&nbsp;3.</span></h5><div class="content"><span>Der Beamte hat seine dienstlichen Aufgaben treu zu besorgen. Dieser Bundesrecht-Text stammt aus dem direkt referenzierten RIS-Dokument und ist absichtlich lang genug, damit die Detailabfrage nicht auf eine Seiten-Fallback-URL wechseln muss.</span></div></div></div></body></html>',
         headers: { "content-type": "text/html; charset=utf-8" },
       } as any);
 
@@ -371,6 +371,74 @@ describe("RIS Adapter", () => {
       );
       expect(detail?.fullText).not.toContain("<!DOCTYPE html>");
       expect(detail?.fullText).not.toContain("Header");
+    });
+
+    it("should accept short matched paragraph texts", async () => {
+      const adapter = new RISAdapter();
+      const law = {
+        id: "NOR40274148",
+        title: "Beamten-Dienstrechtsgesetz 1979 – § 3",
+        documentType: "Paragraph",
+        section: "§ 3",
+        lawNumber: "10008470",
+        effectiveDate: "2025-04-01",
+        url: "https://www.ris.bka.gv.at/Dokumente/Bundesnormen/NOR40274148/NOR40274148.html",
+        contentUrls: {
+          html: "https://www.ris.bka.gv.at/Dokumente/Bundesnormen/NOR40274148/NOR40274148.html",
+        },
+      };
+
+      vi.spyOn(axios, "get").mockResolvedValue({
+        data: '<!DOCTYPE html><html><body><div class="documentContent"><div class="contentBlock"><h5>§ 3.</h5><div class="content"><span>Kurztext.</span></div></div></div></body></html>',
+        headers: { "content-type": "text/html; charset=utf-8" },
+      } as any);
+
+      const detail = await adapter.fetchBundesrechtDetail(law);
+
+      expect(detail).toMatchObject({
+        title: law.title,
+        url: law.contentUrls.html,
+      });
+      expect(detail?.fullText).toContain("Kurztext.");
+    });
+
+    it("should continue to fallback URLs when an earlier candidate fails", async () => {
+      const adapter = new RISAdapter();
+      const law = {
+        id: "NOR40274148",
+        title: "Beamten-Dienstrechtsgesetz 1979 – § 3",
+        documentType: "Paragraph",
+        section: "§ 3",
+        lawNumber: "10008470",
+        effectiveDate: "2025-04-01",
+        url: "https://www.ris.bka.gv.at/eli/bgbl/i/1979/333/P3/NOR40274148",
+        currentLawUrl:
+          "https://www.ris.bka.gv.at/GeltendeFassung.wxe?Abfrage=Bundesnormen&Gesetzesnummer=10008470",
+        contentUrls: {
+          html: "https://www.ris.bka.gv.at/Dokumente/Bundesnormen/NOR40274148/NOR40274148.html",
+        },
+      };
+
+      const axiosGet = vi
+        .spyOn(axios, "get")
+        .mockRejectedValueOnce(new Error("404"))
+        .mockResolvedValueOnce({
+          data: '<!DOCTYPE html><html><body><div class="documentContent"><div class="contentBlock"><h5>§ 3.</h5><div class="content"><span>Fallbacktext aus der nächsten Kandidaten-URL.</span></div></div></div></body></html>',
+          headers: { "content-type": "text/html; charset=utf-8" },
+        } as any);
+
+      const detail = await adapter.fetchBundesrechtDetail(law);
+
+      expect(axiosGet).toHaveBeenCalledTimes(2);
+      expect(axiosGet.mock.calls[0]?.[0]).toBe(law.contentUrls.html);
+      expect(axiosGet.mock.calls[1]?.[0]).toBe(law.url);
+      expect(detail).toMatchObject({
+        title: law.title,
+        url: law.url,
+      });
+      expect(detail?.fullText).toContain(
+        "Fallbacktext aus der nächsten Kandidaten-URL.",
+      );
     });
   });
 

@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-* Added a new `bundesrecht` command for RIS `Bundesrecht` / `Applikation=BrKons`, including optional full-text fetching of the current consolidated law version.
+* Added a new `bundesrecht` command for RIS `Bundesrecht` / `Applikation=BrKons`, including optional fetching of matched provision full text.
 
 ## 1.0.0 - 2026-03-21
 

@@ -173,8 +173,8 @@ export class RISAdapter {
       result.contentUrls?.html,
       result.contentUrls?.xml,
       result.contentUrls?.rtf,
-      result.currentLawUrl,
       result.url,
+      result.currentLawUrl,
     ].filter((value, index, arr): value is string => {
       return (
         typeof value === "string" &&
@@ -183,8 +183,10 @@ export class RISAdapter {
       );
     });
 
-    try {
-      for (const candidateUrl of candidateUrls) {
+    let lastError: unknown = null;
+
+    for (const candidateUrl of candidateUrls) {
+      try {
         const response = await axios.get(candidateUrl, {
           timeout: 30000,
           headers: {
@@ -200,23 +202,26 @@ export class RISAdapter {
           response.headers?.["content-type"],
         );
 
-        if (extracted.trim().length > 200) {
+        if (extracted.trim().length > 0) {
           return this.buildLawDetailFromExtractedText(
             result,
             extracted,
             candidateUrl,
           );
         }
+      } catch (error) {
+        lastError = error;
       }
+    }
 
-      return null;
-    } catch (error) {
+    if (lastError) {
       console.error(
         `Failed to fetch Bundesrecht detail for ${result.url}:`,
-        error,
+        lastError,
       );
-      return null;
     }
+
+    return null;
   }
 
   /**
