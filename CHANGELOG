@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+* Added a black-box e2e eval suite (`pnpm eval:e2e`) that runs the built CLI against the live RIS API and checks pre-declared expectations for all Judikatur applications, option handling, and Bundesrecht lookups.
+
 * Added a `-a`/`--application` option to `search` so every RIS Judikatur application (`Justiz`, `Vwgh`, `Vfgh`, `Bvwg`, `Lvwg`, `Dsk`, `Gbk`, `Pvak`) can be queried; values are case-insensitive and unknown values fail with a clear message listing all valid ones.
 * Mapped the result court from the application-specific metadata subobject (e.g. `Judikatur.Vwgh.Gericht`) and preferred the linked decision full text (`EntscheidungstextUrl`, e.g. `JWT_…` instead of `JWR_…`) as result URL for non-Justiz Rechtssatz hits.
 * Restricted the `Gericht` request parameter to the `Justiz` application; the other Judikatur applications have no court search parameter in the RIS OGD API.

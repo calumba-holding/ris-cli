@@ -311,6 +311,17 @@ make smoke
 make format
 ```
 
+### E2E evals
+
+Black-box evals run the built CLI against the live RIS API and check
+pre-declared expectations (courts, known case numbers, option handling). They
+are separate from `pnpm test` because they need network access. See
+[`evals/e2e/README.md`](evals/e2e/README.md).
+
+```bash
+pnpm eval:e2e
+```
+
 ## Release
 
 Versioned releases are published through GitHub Actions via `.github/workflows/release.yml`.

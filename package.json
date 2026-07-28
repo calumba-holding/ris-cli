@@ -47,6 +47,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
+    "eval:e2e": "pnpm build && tsx evals/e2e/run.ts",
     "lint": "pnpm format:check",
     "typecheck": "tsc --noEmit",
     "check": "pnpm lint && pnpm typecheck && pnpm test",
