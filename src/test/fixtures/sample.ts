@@ -140,3 +140,50 @@ export const sampleAPIStringResponse = JSON.stringify(sampleAPIResponse);
 export const sampleBundesrechtAPIStringResponse = JSON.stringify(
   sampleBundesrechtAPIResponse,
 );
+
+export const sampleVwghAPIResponse = {
+  Data: [
+    {
+      Metadaten: {
+        Technisch: {
+          ID: "JWR_2025080088_20260226L01",
+          Applikation: "Vwgh",
+          Organ: "Verwaltungsgerichtshof (VwGH)",
+        },
+        Allgemein: {
+          DokumentUrl:
+            "https://www.ris.bka.gv.at/Dokument.wxe?Abfrage=Vwgh&Dokumentnummer=JWR_2025080088_20260226L01",
+        },
+        Judikatur: {
+          Dokumenttyp: "Rechtssatz",
+          Geschaeftszahl: { item: "Ra 2025/08/0088" },
+          Entscheidungsdatum: "2026-02-26",
+          Schlagworte:
+            "Individuelle Normen und Parteienrechte Bindung der Verwaltungsbehörden an gerichtliche Entscheidungen",
+          EuropeanCaseLawIdentifier: "ECLI:AT:VWGH:2026:RA2025080088.L01",
+          Vwgh: {
+            Rechtssatznummer: "1",
+            Entscheidungsart: "Erkenntnis",
+            Gericht: "Verwaltungsgerichtshof (VwGH)",
+          },
+          GesamteEntscheidungUrl:
+            "https://www.ris.bka.gv.at/JudikaturEntscheidung.wxe?Abfrage=Vwgh&Dokumentnummer=JWR_2025080088_20260226L01",
+          EntscheidungstextUrl:
+            "https://www.ris.bka.gv.at/Dokument.wxe?Abfrage=Vwgh&Dokumentnummer=JWT_2025080088_20260226L00",
+        },
+      },
+      Dokumentliste: {
+        ContentReference: {
+          Urls: {
+            ContentUrl: [
+              {
+                DataType: "Html",
+                Url: "https://www.ris.bka.gv.at/Dokumente/Vwgh/JWR_2025080088_20260226L01/JWR_2025080088_20260226L01.html",
+              },
+            ],
+          },
+        },
+      },
+    },
+  ],
+};

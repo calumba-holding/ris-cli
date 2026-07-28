@@ -170,7 +170,7 @@ However, the executable CLI currently wraps only part of the documented RIS surf
 
 That means:
 
-- `search` currently searches **Judikatur**
+- `search` searches **Judikatur** across all applications (`Justiz`, `Vwgh`, `Vfgh`, `Bvwg`, `Lvwg`, `Dsk`, `Gbk`, `Pvak`)
 - `bundesrecht` searches **Bundesrecht** via `Applikation=BrKons`
 - `bundesrecht --with-full-text` fetches the **matched provision text** via RIS content URLs with page fallbacks
 - `sync` currently syncs **Judikatur** documents into Obsidian
@@ -198,7 +198,7 @@ ris-cli onboard --json
 
 ### Search RIS
 
-At the moment this means: search the RIS **Judikatur** endpoint used by the project.
+Searches the RIS **Judikatur** endpoint. By default the `Justiz` application (OGH, OLG, LG, BG) is queried; pick another Judikatur application with `-a`/`--application`.
 
 ```bash
 ris-cli search "Cybermobbing"
@@ -209,7 +209,24 @@ ris-cli search "Verhetzung" --with-summary --limit 3
 ris-cli search --json
 ```
 
-Search results are requested from RIS as decision texts and sorted server-side by date descending (newest first). Add `--with-summary` to fetch the full text of each result and generate a summary.
+#### Judikatur applications (`-a`/`--application`)
+
+Supported values (case-insensitive): `Justiz` (default), `Vwgh`, `Vfgh`, `Bvwg`, `Lvwg`, `Dsk`, `Gbk`, `Pvak`.
+
+```bash
+# Verwaltungsgerichtshof (VwGH)
+ris-cli search "Urlaubsersatzleistung" -a Vwgh --limit 3
+
+# Bundesverwaltungsgericht (BVwG)
+ris-cli search "Karenzurlaub Beschäftigungsverbot" --application Bvwg --limit 5
+
+# Verfassungsgerichtshof (VfGH), lowercase works too
+ris-cli search "Legalitätsprinzip" -a vfgh --limit 5
+```
+
+Note: `--court` only takes effect for the `Justiz` application. The other applications have no court search parameter in the RIS OGD API (`Lvwg` filters by Bundesland instead, which is not exposed by this CLI). For non-Justiz applications no `Gericht` parameter is sent.
+
+Search results are requested from RIS as decision texts and sorted server-side by date descending (newest first). Rechtssatz hits link the decision full text where the API provides it (e.g. `JWT_…` instead of `JWR_…` for VwGH). Add `--with-summary` to fetch the full text of each result and generate a summary.
 
 ### Search Bundesrecht
 

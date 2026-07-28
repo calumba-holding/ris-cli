@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+* Added a `-a`/`--application` option to `search` so every RIS Judikatur application (`Justiz`, `Vwgh`, `Vfgh`, `Bvwg`, `Lvwg`, `Dsk`, `Gbk`, `Pvak`) can be queried; values are case-insensitive and unknown values fail with a clear message listing all valid ones.
+* Mapped the result court from the application-specific metadata subobject (e.g. `Judikatur.Vwgh.Gericht`) and preferred the linked decision full text (`EntscheidungstextUrl`, e.g. `JWT_…` instead of `JWR_…`) as result URL for non-Justiz Rechtssatz hits.
+* Restricted the `Gericht` request parameter to the `Justiz` application; the other Judikatur applications have no court search parameter in the RIS OGD API.
+* Updated axios to 1.18.1 (>= 1.16.1) to fix broken HTTPS CONNECT proxy handling that caused HTTP 405 errors behind proxies.
+
 ## 1.1.3 - 2026-03-22
 
 * Added release guardrails that validate GitHub repository visibility before provenance-enabled npm releases.
