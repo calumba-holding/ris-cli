@@ -1,5 +1,33 @@
 // Types for ris-cli CLI
 
+/**
+ * Judikatur applications supported by the RIS OGD API v2.6 Judikatur endpoint.
+ */
+export const JUDIKATUR_APPLICATIONS = [
+  "Justiz",
+  "Vwgh",
+  "Vfgh",
+  "Bvwg",
+  "Lvwg",
+  "Dsk",
+  "Gbk",
+  "Pvak",
+] as const;
+
+export type JudikaturApplication = (typeof JUDIKATUR_APPLICATIONS)[number];
+
+/**
+ * Resolve a case-insensitive user value to a canonical Judikatur application.
+ */
+export function normalizeJudikaturApplication(
+  value: string,
+): JudikaturApplication | undefined {
+  const normalized = value.trim().toLowerCase();
+  return JUDIKATUR_APPLICATIONS.find(
+    (application) => application.toLowerCase() === normalized,
+  );
+}
+
 export interface Judgment {
   id: string;
   title: string;
@@ -73,6 +101,7 @@ export interface SearchOptions {
   toDate?: string;
   output?: "json" | "text";
   gericht?: string;
+  application?: JudikaturApplication;
 }
 
 export interface JudgmentDetail extends SearchResult {

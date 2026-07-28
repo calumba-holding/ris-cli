@@ -6,6 +6,7 @@ import type {
   SearchResult,
   SearchOptions,
   JudgmentDetail,
+  JudikaturApplication,
   LawSearchResult,
   LawDetail,
 } from "../types/index.js";
@@ -97,6 +98,7 @@ export class RISAdapter {
           response.data,
           query,
           strategy.pageSize,
+          options.application ?? "Justiz",
         );
         results.push(...pageResults);
 
@@ -336,9 +338,11 @@ export class RISAdapter {
     options: RISSearchOptions,
     pageSize: number,
   ): Record<string, any> {
+    const application = options.application ?? "Justiz";
     const params: Record<string, any> = {
-      Applikation: "Justiz",
+      Applikation: application,
       Suchworte: query,
+      // Valid full-text switch for all Judikatur applications (OGD API v2.6).
       "Dokumenttyp.SucheInEntscheidungstexten": "true",
       DokumenteProSeite: this.mapPageSizeToApiValue(pageSize),
       "Sortierung.SortedByColumn": "Datum",
@@ -347,7 +351,13 @@ export class RISAdapter {
 
     if (options.fromDate) params.EntscheidungsdatumVon = options.fromDate;
     if (options.toDate) params.EntscheidungsdatumBis = options.toDate;
-    if (options.gericht && options.gericht !== "All")
+    // Only the Justiz application has a Gericht search parameter; Lvwg filters
+    // by Bundesland and the remaining applications have no court filter at all.
+    if (
+      application === "Justiz" &&
+      options.gericht &&
+      options.gericht !== "All"
+    )
       params.Gericht = options.gericht;
 
     return params;
@@ -517,6 +527,7 @@ export class RISAdapter {
     data: any,
     _query: string,
     limit: number,
+    application: JudikaturApplication = "Justiz",
   ): SearchResult[] {
     const results: SearchResult[] = [];
     const dataArray = this.extractDataArray(data);
@@ -530,8 +541,10 @@ export class RISAdapter {
 
       if (!judikatur) continue;
 
-      // Extract court - may be in different locations
+      // Extract court - prefer the application-specific subobject
+      // (e.g. Judikatur.Vwgh.Gericht, Judikatur.Bvwg.Gericht)
       const courtData =
+        judikatur?.[application]?.Gericht ||
         judikatur?.Gericht ||
         metadata?.Technisch?.Organ ||
         metadata?.Organ ||
@@ -549,9 +562,18 @@ export class RISAdapter {
         ? decisionTexts.find((t: any) => typeof t?.DokumentUrl === "string")
         : undefined;
 
+      // Non-Justiz Rechtssatz documents link their decision full text via
+      // EntscheidungstextUrl (e.g. JWR_... -> JWT_... for Vwgh).
+      const decisionTextUrl =
+        application !== "Justiz" &&
+        typeof judikatur?.EntscheidungstextUrl === "string"
+          ? judikatur.EntscheidungstextUrl
+          : undefined;
+
       // Human-facing document page URL (Dokument.wxe)
       const docUrl =
         preferredTextDoc?.DokumentUrl ||
+        decisionTextUrl ||
         metadata?.Allgemein?.DokumentUrl ||
         metadata?.DokumentUrl ||
         "";
@@ -562,11 +584,12 @@ export class RISAdapter {
 
       // Direct content URLs (XML/HTML/RTF/PDF) are usually present under Dokumentliste
       // (but these belong to the current API document - often a Rechtssatz JJR_...).
-      // If we switched to a decision text document (JJT_...), we intentionally ignore those
-      // and let fetchDetail() scrape the JJT page to find the correct content links.
-      const contentUrls = preferredTextDoc
-        ? undefined
-        : this.extractContentUrls(item);
+      // If we switched to a decision text document (JJT_/JWT_...), we intentionally ignore
+      // those and let fetchDetail() scrape the text page to find the correct content links.
+      const contentUrls =
+        preferredTextDoc || decisionTextUrl
+          ? undefined
+          : this.extractContentUrls(item);
 
       // Generate title from Geschaeftszahl or use first decision text
       const title = this.extractTitle(judikatur);

@@ -9,7 +9,15 @@ import { getRISAdapter } from "../adapters/ris.js";
 import { getDataFolder, requireObsidianVaultPath } from "../lib/config.js";
 import { generateSummary } from "../lib/summary.js";
 import { formatOutput, parseOutputFormat } from "../lib/utils.js";
-import type { SearchOptions, SearchResult } from "../types/index.js";
+import {
+  JUDIKATUR_APPLICATIONS,
+  normalizeJudikaturApplication,
+} from "../types/index.js";
+import type {
+  JudikaturApplication,
+  SearchOptions,
+  SearchResult,
+} from "../types/index.js";
 
 export function createSearchCommand(): Command {
   const cmd = new Command("search")
@@ -20,8 +28,12 @@ export function createSearchCommand(): Command {
     .option("--from-date <date>", "Filter from date (YYYY-MM-DD)")
     .option("--to-date <date>", "Filter to date (YYYY-MM-DD)")
     .option(
+      "-a, --application <application>",
+      `Judikatur application to search (case-insensitive): ${JUDIKATUR_APPLICATIONS.join(", ")}`,
+    )
+    .option(
       "--court <court>",
-      "Filter by court, e.g. OGH, OLG Wien, LG Salzburg",
+      "Filter by court, e.g. OGH, OLG Wien, LG Salzburg (Justiz only)",
     )
     .option(
       "--with-summary",
@@ -54,12 +66,25 @@ async function executeSearch(query: string, options: any): Promise<void> {
     query = "Cybermobbing OR Hassposting";
   }
 
+  let application: JudikaturApplication | undefined;
+  if (options.application !== undefined) {
+    application = normalizeJudikaturApplication(String(options.application));
+    if (!application) {
+      console.error(
+        `❌ Unknown application "${options.application}". Valid values: ${JUDIKATUR_APPLICATIONS.join(", ")}`,
+      );
+      process.exitCode = 1;
+      return;
+    }
+  }
+
   const searchOptions: SearchOptions = {
     limit: parseInt(options.limit, 10),
     offset: parseInt(options.offset, 10),
     fromDate: options.fromDate,
     toDate: options.toDate,
     gericht: options.court,
+    application,
     output: outputFormat,
   };
 

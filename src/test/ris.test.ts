@@ -9,7 +9,9 @@ import {
   sampleAPIStringResponse,
   sampleBundesrechtAPIResponse,
   sampleBundesrechtAPIStringResponse,
+  sampleVwghAPIResponse,
 } from "../test/fixtures/sample.js";
+import { normalizeJudikaturApplication } from "../types/index.js";
 
 describe("RIS Adapter", () => {
   afterEach(() => {
@@ -48,6 +50,58 @@ describe("RIS Adapter", () => {
           "Sortierung.SortDirection": "Descending",
         }),
       );
+    });
+
+    it("should not send a Gericht param for non-Justiz applications", async () => {
+      const adapter = new RISAdapter();
+      const fetchWithRetry = vi
+        .fn()
+        .mockResolvedValue({ data: sampleAPIResponseEmpty });
+      (adapter as any).fetchWithRetry = fetchWithRetry;
+
+      await adapter.search("Karenzurlaub", {
+        limit: 10,
+        offset: 0,
+        gericht: "OGH",
+        application: "Bvwg",
+      });
+
+      expect(fetchWithRetry).toHaveBeenCalledTimes(1);
+      const params = fetchWithRetry.mock.calls[0]?.[1];
+      expect(params).toEqual(
+        expect.objectContaining({
+          Applikation: "Bvwg",
+          Suchworte: "Karenzurlaub",
+          "Dokumenttyp.SucheInEntscheidungstexten": "true",
+        }),
+      );
+      expect(params).not.toHaveProperty("Gericht");
+    });
+
+    it("should send the full-text switch and no Justiz-only params for Vwgh and Vfgh", async () => {
+      for (const application of ["Vwgh", "Vfgh"] as const) {
+        const adapter = new RISAdapter();
+        const fetchWithRetry = vi
+          .fn()
+          .mockResolvedValue({ data: sampleAPIResponseEmpty });
+        (adapter as any).fetchWithRetry = fetchWithRetry;
+
+        await adapter.search("Urlaubsersatzleistung", {
+          limit: 10,
+          offset: 0,
+          application,
+        });
+
+        const params = fetchWithRetry.mock.calls[0]?.[1];
+        expect(params).toEqual(
+          expect.objectContaining({
+            Applikation: application,
+            "Dokumenttyp.SucheInEntscheidungstexten": "true",
+          }),
+        );
+        expect(params).not.toHaveProperty("Dokumenttyp.SucheInTexten");
+        expect(params).not.toHaveProperty("Gericht");
+      }
     });
 
     it("should choose an efficient paging strategy for offset searches", () => {
@@ -131,6 +185,29 @@ describe("RIS Adapter", () => {
         gz: "4Ob123/23x",
         url: expect.stringContaining("JJR_20230315"),
       });
+    });
+
+    it("should map Vwgh results with the court from the application subobject and prefer the decision text URL", () => {
+      const adapter = new RISAdapter();
+      const results = (adapter as any).parseApiResults(
+        sampleVwghAPIResponse,
+        "Urlaubsersatzleistung",
+        10,
+        "Vwgh",
+      );
+
+      expect(results).toHaveLength(1);
+      expect(results[0]).toMatchObject({
+        id: "JWT_2025080088_20260226L00",
+        title: "Ra 2025/08/0088",
+        court: "Verwaltungsgerichtshof (VwGH)",
+        date: "2026-02-26",
+        gz: "Ra 2025/08/0088",
+        url: expect.stringContaining("JWT_2025080088_20260226L00"),
+      });
+      // Content URLs belong to the Rechtssatz (JWR_...) document and are dropped
+      // once the result points at the decision text (JWT_...).
+      expect(results[0].contentUrls).toBeUndefined();
     });
 
     it("should handle empty results", () => {
@@ -447,6 +524,20 @@ describe("RIS Adapter", () => {
       const adapter = new RISAdapter();
       expect(adapter).toBeInstanceOf(RISAdapter);
     });
+  });
+});
+
+describe("normalizeJudikaturApplication", () => {
+  it("should accept application values case-insensitively", () => {
+    expect(normalizeJudikaturApplication("bvwg")).toBe("Bvwg");
+    expect(normalizeJudikaturApplication("Bvwg")).toBe("Bvwg");
+    expect(normalizeJudikaturApplication("VWGH")).toBe("Vwgh");
+    expect(normalizeJudikaturApplication(" justiz ")).toBe("Justiz");
+  });
+
+  it("should reject unknown application values", () => {
+    expect(normalizeJudikaturApplication("Foo")).toBeUndefined();
+    expect(normalizeJudikaturApplication("")).toBeUndefined();
   });
 });
 
