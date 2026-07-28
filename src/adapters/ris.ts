@@ -844,9 +844,10 @@ export class RISAdapter {
   private async extractTextFromDocument(
     content: string,
     url: string,
-    contentType?: string,
+    contentType?: unknown,
   ): Promise<string> {
-    const lowerContentType = contentType?.toLowerCase() || "";
+    const lowerContentType =
+      typeof contentType === "string" ? contentType.toLowerCase() : "";
     const isXml =
       url.endsWith(".xml") ||
       lowerContentType.includes("xml") ||
