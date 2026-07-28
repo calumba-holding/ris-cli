@@ -6,3 +6,4 @@ dist/
 *.tgz
 pnpm-debug.log*
 .DS_Store
+evals/e2e/report.json
